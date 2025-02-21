@@ -1,0 +1,110 @@
+import numpy as np
+from typing import Dict
+import torchaudio
+import torch
+import pathlib
+import os
+import numpy as np
+from .basic_pitch_torch.model import BasicPitchTorch
+from .basic_pitch_torch.inference import predict
+from scipy.signal import lfilter
+from random import random
+
+
+class BaseTransform():
+
+    def __init__(self, sr: int | None, name: str | None) -> None:
+        self.sr = sr
+        self.name = name
+
+    def forward(self, x: np.array) -> Dict[str, np.array]:
+        raise NotImplementedError()
+
+
+# key is model name, value is record path ; tuple with mirrors
+__BASICPITCH_MODELS = {
+    'icassp2022': ['basic_pitch_torch/assets/basic_pitch_pytorch_icassp_2022.pth', tuple()]
+}
+
+
+class BasicPitch(BaseTransform):
+    def __init__(self, 
+                 sr, 
+                 device="cpu", 
+                 model: str = 'icassp2022'
+                ) -> None:
+        super().__init__(sr, "basic_pitch")
+
+        self.pt_model = BasicPitchTorch()
+        self.device = device
+        self.load_model(model)
+
+    @property
+    @staticmethod
+    def available_models():
+        return __BASICPITCH_MODELS
+
+    def _try_download(self, model_path, mirrors):
+        #TODO
+        return False
+
+    def load_model(self, model):
+        if model not in self.available_models:
+            raise ValueError('model %s not known. Available models : %s'%(self.available_models.keys()))
+        file_path = pathlib.Path(__file__).parent.resolve()
+        model_path, mirrors = self.available_models[model]
+        model_path = os.path.join(file_path, model)
+        if not os.path.exists(model_path):
+            out = self._try_download(model_path, mirrors)
+            if not out: raise RuntimeError('Could not download model %s. Please re-try, or select another model'%model)
+        self.pt_model.load_state_dict(torch.load(model_path))
+        self.pt_model.eval()
+        self.pt_model.to(self.device)
+
+    @torch.no_grad
+    def __call__(self, waveform, sr = None, **kwargs):
+        if type(waveform) != torch.Tensor:
+            waveform = torch.from_numpy(waveform).to(self.device)
+
+        sr = sr or self.sr
+
+        if self.sr != 22050:
+            waveform = torchaudio.functional.resample(waveform=waveform,
+                                                      orig_freq=self.sr,
+                                                      new_freq=22050)
+
+        #print(waveform)
+        if len(waveform.shape) > 1 and waveform.shape[0] > 1:
+            results = []
+            for wave in waveform:
+                _, midi_data, _ = predict(model=self.pt_model,
+                                          audio=wave.squeeze().cpu(),
+                                          device=self.device)
+                results.append(midi_data)
+            return results
+        else:
+            _, midi_data, _ = predict(model=self.pt_model,
+                                      audio=waveform.squeeze().cpu(),
+                                      device=self.device)
+            return midi_data
+
+
+def random_angle(min_f=20, max_f=8000, sr=24000):
+    min_f = np.log(min_f)
+    max_f = np.log(max_f)
+    rand = np.exp(random() * (max_f - min_f) + min_f)
+    rand = 2 * np.pi * rand / sr
+    return rand
+
+
+def pole_to_z_filter(omega, amplitude=.9):
+    z0 = amplitude * np.exp(1j * omega)
+    a = [1, -2 * np.real(z0), abs(z0)**2]
+    b = [abs(z0)**2, -2 * np.real(z0), 1]
+    return b, a
+
+
+def random_phase_mangle(x, min_f, max_f, amp, sr):
+    angle = random_angle(min_f, max_f, sr)
+    b, a = pole_to_z_filter(angle, amp)
+    return lfilter(b, a, x)

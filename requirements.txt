@@ -1,0 +1,17 @@
+grpc_tools
+pytest
+absl-py
+PyYAML
+gin-config
+lmdb
+tqdm
+numpy
+scipy
+librosa>=0.10.2
+protobuf
+torch
+torchaudio
+nnaudio
+mir_eval
+resampy
+pretty_midi
