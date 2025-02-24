@@ -1,28 +1,21 @@
 import os, sys
+import random
+import lmdb
 import shutil
 import torch
 import torchaudio
 import pytest
 import gin
 
-
+from . import OUT_TEST_DIR, test_name
 from pathlib import Path
-
-CURRENT_TEST_DIR = Path(__file__).parent
-OUT_TEST_DIR = CURRENT_TEST_DIR / "outs"
-os.makedirs(OUT_TEST_DIR, exist_ok=True)
-
-sys.path.append(str((CURRENT_TEST_DIR / '..').resolve()))
-gin.add_config_file_search_path(str((CURRENT_TEST_DIR / '..' / 'configs').resolve()))
-
-from acids_dataset.datasets import audio_paths_from_dir, LMDBWriter
+from acids_dataset.datasets import audio_paths_from_dir, LMDBWriter, read_metadata
 from acids_dataset.parsers import raw_parser as raw
+from acids_dataset.fragments import AcidsFragment
 from acids_dataset.utils import loudness
-from datasets import get_available_datasets, get_dataset, get_available_datasets_with_filters
+from acids_dataset import get_fragment_class
+from .datasets import get_available_datasets, get_dataset, get_available_datasets_with_filters
 
-@pytest.fixture
-def test_name(request):
-    return request.node.name
 
 @pytest.mark.parametrize("dataset,filters", get_available_datasets_with_filters())
 def test_parse_dataset_files(dataset, filters, test_name):
@@ -54,6 +47,7 @@ def test_raw_parser(dataset, test_name, parser, import_backend, pad_mode, chunk_
             hop_length=hop_length, 
             overlap=overlap, 
             sr = 44100,
+            channels = 1,
             pad_mode=pad_mode, 
             import_backend=import_backend, 
             loudness_threshold=loudness_threshold            
@@ -61,9 +55,9 @@ def test_raw_parser(dataset, test_name, parser, import_backend, pad_mode, chunk_
         for obj in current_parser:
             try:
                 data = obj()
-                assert len(list(filter(lambda x, l = current_parser.chunk_length_smp: x.shape[-1] != l, data))) == 0
+                assert len(list(filter(lambda x, l = current_parser.chunk_length_smp: x['audio'].shape[-1] != l, data))) == 0
                 if loudness_threshold is not None:
-                    assert len(list(filter(lambda x, t = loudness_threshold, sr = current_parser.sr: loudness(torch.Tensor(x), sr) < t, data))) == 0
+                    assert len(list(filter(lambda x, t = loudness_threshold, sr = current_parser.sr: loudness(torch.Tensor(x['audio']), sr) < t, data))) == 0
                 file_stats[path] = {"n_chunks": len(data)}
             except raw.FileNotReadException as e:
                 file_exceptions.append(e)
@@ -77,7 +71,8 @@ def test_raw_parser(dataset, test_name, parser, import_backend, pad_mode, chunk_
             
 @pytest.mark.parametrize('config', ['rave.gin'])
 @pytest.mark.parametrize("dataset", get_available_datasets())
-def test_build_dataset(config, dataset, test_name):
+def test_build_dataset(config, dataset, test_name, test_k = 1):
+    # test writing
     gin.constant('SAMPLE_RATE', 44100)
     gin.constant('CHANNELS', 1)
     gin.parse_config_file(config)
@@ -87,6 +82,18 @@ def test_build_dataset(config, dataset, test_name):
         shutil.rmtree(dataset_out.resolve())
     writer = LMDBWriter(dataset_path, dataset_out)
     writer.build()
+
+    # test loading
+    env = lmdb.open(str(dataset_out), lock=False, readonly=True)
+    fragment_class = get_fragment_class(read_metadata(dataset_out)['fragment_class'])
+    with env.begin() as txn:
+        dataset_keys = list(txn.cursor().iternext(values=False))
+        # pick a random item
+        random_keys = random.choices(dataset_keys, k=test_k)
+        for key in random_keys:
+            ae = fragment_class(txn.get(key))
+            audio = ae.get_audio("waveform")
+
 
         
 

@@ -30,7 +30,7 @@ class TorchaudioBackend(object):
         bformat,
         loudness_threshold 
     ) -> List[Callable]:
-        def _load_file(fragment_class):
+        def _load_file(fragment_class = dict):
             try:
                 wav, orig_sr = torchaudio.load(audio_path)
             except RuntimeError: 
@@ -56,7 +56,6 @@ class TorchaudioBackend(object):
                     else:
                         wav[i] = padded_chunk
                 
-                
                 if loudness_threshold is not None:
                     chunk_loudness = loudness(wav[i], sr)
                     if chunk_loudness < loudness_threshold:
@@ -64,12 +63,14 @@ class TorchaudioBackend(object):
                         continue
                 current_fragment = fragment_class(
                         audio_path = audio_path, 
-                        audio = None, 
+                        audio = wav[i], 
                         start_pos = start_pos[i] / sr,
                         bformat = bformat
                     )
                 fragments.insert(0, current_fragment)
             return fragments 
+
+        _load_file.__repr__ = lambda: "TorchaudioBackend.file_loader(audio_path=%s)"%(audio_path)
         return [_load_file]
 
     @classmethod

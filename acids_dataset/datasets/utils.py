@@ -1,4 +1,5 @@
 import os
+import yaml
 import fnmatch
 from pathlib import Path
 from typing import List
@@ -26,3 +27,14 @@ def audio_paths_from_dir(
             parsed_candidates = list(filter(lambda x, r = e: not fnmatch.fnmatch(x.relative_to(base_dir), r), parsed_candidates))
         audio_candidates.extend(map(str, parsed_candidates))
     return audio_candidates 
+
+def read_metadata(path):
+    path = Path(path)
+    if path.suffix != ".yaml":
+        path = path / "metadata.yaml"
+    if not path.exists():
+        assert FileNotFoundError("yaml file not found for path %s"%path)
+    with open(str(path), 'r') as yaml_file:
+        out = yaml.safe_load(yaml_file)
+    return out
+    
