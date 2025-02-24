@@ -1,0 +1,41 @@
+import gin
+import torch
+
+from .base import AcidsDatasetFeature
+from ..utils import loudness
+
+
+@gin.configurable(module="features")
+class Loudness(AcidsDatasetFeature):
+    def __init__(
+            self, 
+            sr: int = 44100, 
+            **kwargs
+    ):
+        super().__init__()
+        self.sr = sr
+        self.kwargs = kwargs
+
+    def __repr__(self):
+        return "Mel(%s, sr=%d)"%(self.kwargs, self.sr)
+
+    @property
+    def has_hash(self):
+        return False
+
+    @property
+    def feature_name(self):
+        return "loudness"
+
+    def extract(self, fragment, feature_hash):
+        data = torch.from_numpy(fragment.raw_audio).float()
+        try: 
+            data_loudness = loudness(data, self.sr)
+        except RuntimeError:
+            return  
+        fragment.put_array(self.feature_name, data_loudness)
+        
+
+
+
+
