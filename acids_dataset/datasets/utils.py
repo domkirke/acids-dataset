@@ -3,6 +3,7 @@ import yaml
 import fnmatch
 from pathlib import Path
 from typing import List
+from ..utils import checklist
 
 _VALID_EXTS = ['.mp3', '.wav', '.aif', '.aiff', '.flac', '.opus']
 
@@ -16,8 +17,11 @@ def audio_paths_from_dir(
     valid_exts = list(map(lambda x: x.lower(), valid_exts)) + list(map(lambda x: x.upper(), valid_exts))
     audio_candidates = []
     base_dir = Path(dir_path)
+    flt = checklist(flt)
+    exclude = checklist(exclude)
     for ext in valid_exts:
         parsed_candidates = list(map(lambda x: x.resolve(), base_dir.glob(f'**/*{ext}')))
+        if len(parsed_candidates) == 0: continue
         if len(flt) > 0:
             filtered_candidates = []
             for f in flt: 

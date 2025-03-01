@@ -1,2 +1,11 @@
 - model fetching for pitch extraction
 - dataset fetching for tests
+- hashes
+    - for every feature? "hashable" tag?
+- features: 
+    - midi file
+    - loudness
+    - pitch as feature (with f0 / pitch - oct modes)
+    - mels
+    - cqt
+    - custom name parsing

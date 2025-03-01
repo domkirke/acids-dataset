@@ -22,27 +22,23 @@ class BaseTransform():
 
 
 # key is model name, value is record path ; tuple with mirrors
-__BASICPITCH_MODELS = {
+_BASICPITCH_MODELS = {
     'icassp2022': ['basic_pitch_torch/assets/basic_pitch_pytorch_icassp_2022.pth', tuple()]
 }
 
 
 class BasicPitch(BaseTransform):
+    available_models = _BASICPITCH_MODELS
     def __init__(self, 
                  sr, 
                  device="cpu", 
                  model: str = 'icassp2022'
                 ) -> None:
         super().__init__(sr, "basic_pitch")
-
+        #TODO check sampling rate before forwarding to model
         self.pt_model = BasicPitchTorch()
         self.device = device
         self.load_model(model)
-
-    @property
-    @staticmethod
-    def available_models():
-        return __BASICPITCH_MODELS
 
     def _try_download(self, model_path, mirrors):
         #TODO
@@ -53,7 +49,7 @@ class BasicPitch(BaseTransform):
             raise ValueError('model %s not known. Available models : %s'%(self.available_models.keys()))
         file_path = pathlib.Path(__file__).parent.resolve()
         model_path, mirrors = self.available_models[model]
-        model_path = os.path.join(file_path, model)
+        model_path = os.path.join(file_path, model_path)
         if not os.path.exists(model_path):
             out = self._try_download(model_path, mirrors)
             if not out: raise RuntimeError('Could not download model %s. Please re-try, or select another model'%model)
@@ -84,7 +80,7 @@ class BasicPitch(BaseTransform):
             return results
         else:
             _, midi_data, _ = predict(model=self.pt_model,
-                                      audio=waveform.squeeze().cpu(),
+                                      audio=waveform.squeeze().cpu().float(),
                                       device=self.device)
             return midi_data
 

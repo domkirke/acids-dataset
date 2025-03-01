@@ -13,7 +13,7 @@ from acids_dataset.datasets import audio_paths_from_dir, LMDBWriter, read_metada
 from acids_dataset.parsers import raw_parser as raw
 from acids_dataset.fragments import AcidsFragment
 from acids_dataset.utils import loudness
-from acids_dataset import get_fragment_class
+from acids_dataset import get_fragment_class, features
 from .datasets import get_available_datasets, get_dataset, get_available_datasets_with_filters
 
 
@@ -94,6 +94,32 @@ def test_build_dataset(config, dataset, test_name, test_k = 1):
             ae = fragment_class(txn.get(key))
             audio = ae.get_audio("waveform")
 
+
+@pytest.mark.parametrize('config', ['default.gin'])
+def test_slakh_dataset(config, test_name, test_k=2):
+    # test writing
+    gin.constant('SAMPLE_RATE', 44100)
+    gin.constant('CHANNELS', 1)
+    gin.parse_config_file(config)
+    dataset_path = Path(__file__).parent / "datasets" / "slakh_like"
+    dataset_out = OUT_TEST_DIR / "compiled" / test_name
+    if dataset_out.exists():
+        shutil.rmtree(dataset_out.resolve())
+    writer = LMDBWriter(dataset_path, dataset_out, filters=("**/stems/*"), features=[features.AfterMIDI(), features.Loudness()])
+    writer.build()
+
+    # test loading
+    env = lmdb.open(str(dataset_out), lock=False, readonly=True)
+    fragment_class = get_fragment_class(read_metadata(dataset_out)['fragment_class'])
+    with env.begin() as txn:
+        dataset_keys = list(txn.cursor().iternext(values=False))
+        # pick a random item
+        random_keys = random.choices(dataset_keys, k=test_k)
+        for key in random_keys:
+            ae = fragment_class(txn.get(key))
+            audio = ae.get_audio("waveform")
+            midi = ae.get_data("midi")
+            loudness = ae.get_array("loudness")
 
         
 

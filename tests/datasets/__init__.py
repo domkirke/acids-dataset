@@ -6,7 +6,6 @@ from pathlib import Path
 __DATASET_HASH = {
     'simple': ['simple_dataset', tuple()],
     'simple_midi': ['simple_midi_dataset', tuple()],
-    'slakh_like': ['slakh_like', tuple()]
 }
 
 __DEFAULT_PATH = Path(__file__).resolve().parent

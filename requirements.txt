@@ -5,6 +5,7 @@ PyYAML
 gin-config
 lmdb
 tqdm
+dill
 numpy
 scipy
 librosa>=0.10.2

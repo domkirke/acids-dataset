@@ -12,7 +12,7 @@ class Loudness(AcidsDatasetFeature):
             sr: int = 44100, 
             **kwargs
     ):
-        super().__init__()
+        super().__init__(**kwargs)
         self.sr = sr
         self.kwargs = kwargs
 
@@ -27,7 +27,7 @@ class Loudness(AcidsDatasetFeature):
     def feature_name(self):
         return "loudness"
 
-    def extract(self, fragment, feature_hash):
+    def extract(self, fragment, current_key, feature_hash):
         data = torch.from_numpy(fragment.raw_audio).float()
         try: 
             data_loudness = loudness(data, self.sr)

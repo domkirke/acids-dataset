@@ -50,16 +50,26 @@ class LMDBWriter(object):
             if k not in metadata_dict: metadata_dict[k] = v
         return metadata_dict
 
+    def get_feature_name(self, f):
+        return getattr(f, "feature_name", type(f).__name__.lower())
+
+
     def _init_feature_hash(self, features):
         feature_hash = {'original_path': {}}
         for f in features:
-            feature_name = getattr(f, "feature_name", type(f).__name__.lower())
+            if getattr(f, "has_hash", False): continue
+            feature_name = self.get_feature_name(f)
             feature_hash[feature_name] = {}
         return feature_hash
         
-    def _extract_features(self, fragment, feature_hash):
+    def _extract_features(self, fragment, current_key, feature_hash):
         for feature in self.features:
-            feature.extract(fragment)
+            feature.extract(fragment, current_key, feature_hash)
+
+    def _close_features(self):
+        for feature in self.features:
+            feature.close()
+        
 
     def build(self):
         env = lmdb.open(str(self.output_path.resolve()), map_size=self.max_db_size * 1024 ** 3)
@@ -67,22 +77,26 @@ class LMDBWriter(object):
         n_seconds = 0
         metadata = {}
         feature_hash = self._init_feature_hash(self.features)
+        feature_keys = [self.get_feature_name(f) for f in self.features]
+
         for current_file in tqdm.tqdm(self._files):
-            current_parser = self.parser(current_file)
+            current_parser = self.parser(current_file, features=self.features)
             metadata = self._update_metadata(current_parser.get_metadata(), metadata)
             for load_fn in current_parser:
                 try:
                     current_data = load_fn(self.fragment_class)
+                    feature_hash['original_path'][current_file] = feature_hash['original_path'].get(current_file, [])
                     with env.begin(write=True) as txn:
                         for fragment in current_data:
-                            self._extract_features(fragment, feature_hash)
                             current_key = f"{audio_id:09d}"
+                            self._extract_features(fragment, current_key, feature_hash)
                             txn.put(
                                 current_key.encode(), 
                                 fragment.serialize()
                             )
                             audio_id += 1
                             n_seconds += metadata.get('chunk_length', 0) 
+                            feature_hash['original_path'][current_file].append(current_key)
                 except FileNotReadException: 
                         pass
         metadata_path = self.output_path / "metadata.yaml"
@@ -90,9 +104,11 @@ class LMDBWriter(object):
             yaml.safe_dump({
                 "n_seconds": n_seconds,
                 "fragment_class": self.fragment_class.__name__, 
+                "features": feature_keys,
                 **metadata,
             }, f)
         env.close()
+        self._close_features()
 
 
 

@@ -40,7 +40,10 @@ class AcidsFragment(AudioFragment):
             self,
             audio_path: Optional[str] = None, 
             audio: Optional[Any] = None,
+            sr: Optional[int] = None, 
             start_pos: Optional[float] = None, 
+            length: Optional[float] = None,
+            file_length: Optional[float] = None,
             bformat: Optional[str] = None,
             output_type: Literal["numpy", "torch", "jax"] = "numpy",
             **kwargs
@@ -52,9 +55,11 @@ class AcidsFragment(AudioFragment):
         if start_pos is not None: metadata['start_pos'] = str(start_pos)
         if bformat is not None: metadata['bformat'] = str(bformat)
         if output_type is not None: metadata['output_type'] = str(output_type)
+        if length is not None: metadata['length'] = str(length)
+        if file_length is not None: metadata['file_length'] = str(file_length)
         self.set_metadata(metadata)
         if audio is not None:
-            self.put_audio("waveform", audio, bformat)
+            self.put_audio("waveform", audio, dtype=bformat, sr=sr)
 
     @property
     def raw_audio(self):

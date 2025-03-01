@@ -6,6 +6,8 @@ import torch, torchaudio
 from dataclasses import dataclass
 from pathlib import Path
 import gin
+from ..features import AcidsDatasetFeature
+
 from .utils import FileNotReadException
 from ..utils import loudness
 
@@ -28,7 +30,8 @@ class TorchaudioBackend(object):
         sr,
         channels,
         bformat,
-        loudness_threshold 
+        loudness_threshold, 
+        features
     ) -> List[Callable]:
         def _load_file(fragment_class = dict):
             try:
@@ -41,6 +44,9 @@ class TorchaudioBackend(object):
                 wav = wav[:channels]
             elif wav.shape[0] < channels: 
                 wav = wav[torch.arange(channels)%wav.shape[0]]
+            for f in features:
+                if hasattr(f, "pre_chunk_hook"): f.pre_chunk_hook(audio_path, wav, sr)
+            file_length = wav.shape[-1] / sr
             chunk_length_smp = int(chunk_length * sr)
             hop_length_smp = int(hop_length * sr)
             n_chunks = math.ceil(wav.shape[-1] / hop_length_smp)
@@ -65,7 +71,10 @@ class TorchaudioBackend(object):
                         audio_path = audio_path, 
                         audio = wav[i], 
                         start_pos = start_pos[i] / sr,
-                        bformat = bformat
+                        length = chunk_length,
+                        file_length = file_length,
+                        bformat = bformat,
+                        sr = sr
                     )
                 fragments.insert(0, current_fragment)
             return fragments 
@@ -144,15 +153,6 @@ class ImportBackend(enum.Enum):
         else:
             raise ValueError('No backend for %s'%self)
 
-@dataclass
-class ParsingRequest():
-    filepath: str
-    start: float 
-    end: float 
-    duration: float
-    sr: int
-    pad_mode: PadMode
-
 
 @gin.configurable(module="parser")
 class RawParser(object):
@@ -167,7 +167,8 @@ class RawParser(object):
             pad_mode: PadMode | str = PadMode.DISCARD,
             import_backend: ImportBackend | str = ImportBackend.TORCHAUDIO,
             bformat: str = "int16", 
-            loudness_threshold: float | None = None
+            loudness_threshold: float | None = None,
+            features: List[AcidsDatasetFeature] | None = None
         ):
         self.audio_path = audio_path 
         assert Path(self.audio_path).exists(), f"{self.audio_path} does not seem to exist. Please provide a valid file"
@@ -197,6 +198,7 @@ class RawParser(object):
         self.import_backend = import_backend
         self.loudness_threshold = loudness_threshold
         self.channels = channels
+        self._parse_features(features)
 
     @property
     def chunk_length_smp(self):
@@ -205,6 +207,12 @@ class RawParser(object):
     @property
     def hop_length_smp(self):
         return int(self.hop_length * self.sr)
+
+    def _parse_features(self, features) -> None:
+        self._features = []
+        for f in features:
+            if getattr(f, "pre_chunk_hook", None):
+                self._features.append(f)
     
     def get_metadata(self):
         return {
@@ -228,7 +236,8 @@ class RawParser(object):
             sr=self.sr,
             channels=self.channels,
             bformat=self.bformat,
-            loudness_threshold=self.loudness_threshold
+            loudness_threshold=self.loudness_threshold, 
+            features = self._features
         ))
 
 

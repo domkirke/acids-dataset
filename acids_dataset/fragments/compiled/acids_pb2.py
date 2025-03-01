@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0b\x61\x63ids.proto\x12\raudio_example\"\xc4\x05\n\rAudioFragment\x12:\n\x07\x62uffers\x18\x01 \x03(\x0b\x32).audio_example.AudioFragment.BuffersEntry\x12<\n\x08metadata\x18\x02 \x03(\x0b\x32*.audio_example.AudioFragment.MetadataEntry\x1a\xcf\x02\n\x0b\x41udioBuffer\x12\r\n\x05shape\x18\x01 \x03(\x05\x12\x1a\n\rsampling_rate\x18\x02 \x01(\x05H\x00\x88\x01\x01\x12\x11\n\x04\x64\x61ta\x18\x03 \x01(\x0cH\x01\x88\x01\x01\x12>\n\tprecision\x18\x04 \x01(\x0e\x32&.audio_example.AudioFragment.PrecisionH\x02\x88\x01\x01\x12H\n\x08metadata\x18\x05 \x03(\x0b\x32\x36.audio_example.AudioFragment.AudioBuffer.MetadataEntry\x12\x13\n\x06\x66ormat\x18\x06 \x01(\tH\x03\x88\x01\x01\x1a/\n\rMetadataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x42\x10\n\x0e_sampling_rateB\x07\n\x05_dataB\x0c\n\n_precisionB\t\n\x07_format\x1aX\n\x0c\x42uffersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x37\n\x05value\x18\x02 \x01(\x0b\x32(.audio_example.AudioFragment.AudioBuffer:\x02\x38\x01\x1a/\n\rMetadataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\\\n\tPrecision\x12\x0b\n\x07\x46LOAT16\x10\x00\x12\x0b\n\x07\x46LOAT32\x10\x01\x12\x0b\n\x07\x46LOAT64\x10\x02\x12\t\n\x05INT16\x10\x03\x12\t\n\x05INT32\x10\x04\x12\t\n\x05INT64\x10\x05\x12\x07\n\x03RAW\x10\x06\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0b\x61\x63ids.proto\x12\raudio_example\"\xea\x05\n\rAudioFragment\x12:\n\x07\x62uffers\x18\x01 \x03(\x0b\x32).audio_example.AudioFragment.BuffersEntry\x12<\n\x08metadata\x18\x02 \x03(\x0b\x32*.audio_example.AudioFragment.MetadataEntry\x1a\xf5\x02\n\x0b\x41udioBuffer\x12\r\n\x05shape\x18\x01 \x03(\x05\x12\x1a\n\rsampling_rate\x18\x02 \x01(\x05H\x00\x88\x01\x01\x12\x11\n\x04\x64\x61ta\x18\x03 \x01(\x0cH\x01\x88\x01\x01\x12>\n\tprecision\x18\x04 \x01(\x0e\x32&.audio_example.AudioFragment.PrecisionH\x02\x88\x01\x01\x12H\n\x08metadata\x18\x05 \x03(\x0b\x32\x36.audio_example.AudioFragment.AudioBuffer.MetadataEntry\x12\x13\n\x06\x66ormat\x18\x06 \x01(\tH\x03\x88\x01\x01\x12\x16\n\tunpickler\x18\x07 \x01(\x0cH\x04\x88\x01\x01\x1a/\n\rMetadataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x42\x10\n\x0e_sampling_rateB\x07\n\x05_dataB\x0c\n\n_precisionB\t\n\x07_formatB\x0c\n\n_unpickler\x1aX\n\x0c\x42uffersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x37\n\x05value\x18\x02 \x01(\x0b\x32(.audio_example.AudioFragment.AudioBuffer:\x02\x38\x01\x1a/\n\rMetadataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\\\n\tPrecision\x12\x0b\n\x07\x46LOAT16\x10\x00\x12\x0b\n\x07\x46LOAT32\x10\x01\x12\x0b\n\x07\x46LOAT64\x10\x02\x12\t\n\x05INT16\x10\x03\x12\t\n\x05INT32\x10\x04\x12\t\n\x05INT64\x10\x05\x12\x07\n\x03RAW\x10\x06\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -38,15 +38,15 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_AUDIOFRAGMENT_METADATAENTRY']._loaded_options = None
   _globals['_AUDIOFRAGMENT_METADATAENTRY']._serialized_options = b'8\001'
   _globals['_AUDIOFRAGMENT']._serialized_start=31
-  _globals['_AUDIOFRAGMENT']._serialized_end=739
+  _globals['_AUDIOFRAGMENT']._serialized_end=777
   _globals['_AUDIOFRAGMENT_AUDIOBUFFER']._serialized_start=171
-  _globals['_AUDIOFRAGMENT_AUDIOBUFFER']._serialized_end=506
-  _globals['_AUDIOFRAGMENT_AUDIOBUFFER_METADATAENTRY']._serialized_start=407
-  _globals['_AUDIOFRAGMENT_AUDIOBUFFER_METADATAENTRY']._serialized_end=454
-  _globals['_AUDIOFRAGMENT_BUFFERSENTRY']._serialized_start=508
-  _globals['_AUDIOFRAGMENT_BUFFERSENTRY']._serialized_end=596
-  _globals['_AUDIOFRAGMENT_METADATAENTRY']._serialized_start=407
-  _globals['_AUDIOFRAGMENT_METADATAENTRY']._serialized_end=454
-  _globals['_AUDIOFRAGMENT_PRECISION']._serialized_start=647
-  _globals['_AUDIOFRAGMENT_PRECISION']._serialized_end=739
+  _globals['_AUDIOFRAGMENT_AUDIOBUFFER']._serialized_end=544
+  _globals['_AUDIOFRAGMENT_AUDIOBUFFER_METADATAENTRY']._serialized_start=431
+  _globals['_AUDIOFRAGMENT_AUDIOBUFFER_METADATAENTRY']._serialized_end=478
+  _globals['_AUDIOFRAGMENT_BUFFERSENTRY']._serialized_start=546
+  _globals['_AUDIOFRAGMENT_BUFFERSENTRY']._serialized_end=634
+  _globals['_AUDIOFRAGMENT_METADATAENTRY']._serialized_start=431
+  _globals['_AUDIOFRAGMENT_METADATAENTRY']._serialized_end=478
+  _globals['_AUDIOFRAGMENT_PRECISION']._serialized_start=685
+  _globals['_AUDIOFRAGMENT_PRECISION']._serialized_end=777
 # @@protoc_insertion_point(module_scope)

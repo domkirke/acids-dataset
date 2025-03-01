@@ -1,4 +1,5 @@
 import importlib
+import random
 import math
 import torch
 import torchaudio
@@ -74,3 +75,18 @@ def loudness(waveform: torch.Tensor, sample_rate: int):
     LKFS = kweight_bias + 10 * torch.log10(energy_weighted)
     return LKFS
 
+
+def checklist(item, n=1, copy=False):
+    """Repeat list elemnts
+    """
+    if not isinstance(item, (list, )):
+        if copy:
+            item = [copy.deepcopy(item) for _ in range(n)]
+        elif isinstance(item, torch.Size):
+            item = [i for i in item]
+        else:
+            item = [item]*n
+    return item
+
+def get_random_hash(n=8):
+    return "".join([chr(random.randrange(97,122)) for i in range(n)])

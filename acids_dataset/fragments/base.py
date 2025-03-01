@@ -1,4 +1,5 @@
 
+import dill
 import torch
 import numpy as np
 from typing import Any, Optional, Callable
@@ -90,7 +91,17 @@ class AudioFragment(object):
         if key not in self.ae.buffers:
             raise KeyError(f"key '{key}' not available")
         buf = self.ae.buffers[key]
+
         return buf
+
+    def get_data(self, key: str):
+        buf = self.get_buffer(key)
+        data = buf.data
+        if hasattr(buf, "unpickler"):
+            if buf.unpickler != b'':
+                data = dill.loads(buf.unpickler)(data) 
+        return data
+            
 
     def get_array(self, key: str, dtype = None, force_dtype: bool = True, conversion_hook: Callable | None = None):
         if not hasattr(self, "PRECISION_TO_DTYPE"):
@@ -140,32 +151,35 @@ class AudioFragment(object):
         """For retro-compatibility"""
         return self.get_audio(key)
 
-    def put_buffer(self, key: str, b: bytes, shape: list):
+    def put_buffer(self, key: str, b: bytes, shape: list, sr: int | None = None, unpickler: Callable | None = None):
         buffer = self.ae.buffers[key]
         buffer.data = b
+        if sr is not None:
+            buffer.sampling_rate = sr
         if shape is not None:
             buffer.shape.extend(shape)
+        buffer.unpickler = dill.dumps(unpickler)
 
-    def put_array(self, key: str, array: ArrayType, dtype: np.dtype | str | None = None):
+    def put_array(self, key: str, array: ArrayType, dtype: np.dtype | str | None = None, sr: int | None = None):
         if not hasattr(self, "DTYPE_TO_PRECISION"):
             raise RuntimeError("AudioFragment.put_array(..) requires DTYPE_TO_PRECISION class property.")
         array = self._safe_torch_to_numpy(array)
         dtype = np.dtype(dtype or array.dtype)
         buffer = self.ae.buffers[key]
         buffer.data = np.asarray(array).astype(dtype).tobytes()
-        for i in range(len(buffer.shape)):
+        if sr is not None:
+            buffer.sampling_rate = sr
+        for _ in range(len(buffer.shape)):
             buffer.shape.pop()
         buffer.shape.extend(array.shape)
         buffer.precision = getattr(self, "DTYPE_TO_PRECISION")[dtype.name]
     
-    def put_audio(self, key: str, array: ArrayType, dtype = np.dtype | str | None): 
+    def put_audio(self, key: str, array: ArrayType, dtype = np.dtype | str | None, sr: int | None = None): 
         array = self._safe_torch_to_numpy(array)
         dtype = np.dtype(dtype or self.bformat)
         if np.issubdtype(dtype, np.integer):
             array = (array * (2**15 - 1)).astype(dtype)
-        self.put_array(key, array, dtype=dtype)
-
-
+        self.put_array(key, array, dtype=dtype, sr=sr)
 
     # metadata classes
     
