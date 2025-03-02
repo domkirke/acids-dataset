@@ -1,0 +1,15 @@
+RawParser:
+    chunk_length = 131072
+    hop_length = 65536
+    sr = %SAMPLE_RATE
+    channels = %CHANNELS 
+    pad_mode = "discard"
+
+LMDBWriter:
+    fragment_class = @AcidsFragment
+    parser = @RawParser
+    
+append_features:
+    features = [@features.AfterMIDI]
+    
+

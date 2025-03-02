@@ -24,7 +24,7 @@ class Loudness(AcidsDatasetFeature):
         return False
 
     @property
-    def feature_name(self):
+    def default_feature_name(self):
         return "loudness"
 
     def extract(self, fragment, current_key, feature_hash):

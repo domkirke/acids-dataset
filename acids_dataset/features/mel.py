@@ -9,12 +9,12 @@ class Mel(AcidsDatasetFeature):
     def __init__(
             self, 
             sr: int = 44100, 
+            name: str = None,
             **kwargs
     ):
-        super().__init__(**kwargs)
         self.sr = sr
-        self.kwargs = kwargs
         self.mel_spectrogram = MelSpectrogram(**kwargs, sample_rate=sr)
+        super().__init__()
 
     def __repr__(self):
         return "Mel(%s, sr=%d)"%(self.kwargs, self.sr)
@@ -24,7 +24,7 @@ class Mel(AcidsDatasetFeature):
         return False
 
     @property
-    def feature_name(self):
+    def default_feature_name(self):
         return f"mel_{self.mel_spectrogram.n_mels}"
 
     def extract(self, fragment, current_key, feature_hash):

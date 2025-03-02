@@ -29,12 +29,17 @@ class AcidsDatasetFeature(object):
     has_hash = False
     def __init__(
             self, 
-            hash_from_feature: Optional[Callable] = None
+            name: Optional[str] = None,
+            hash_from_feature: Optional[Callable] = None, 
         ):
+        self.feature_name = name or self.default_feature_name
         self.hash_from_feature = hash_from_feature
         if self.hash_from_feature is not None: 
             self.has_hash = True
 
+    @property
+    def default_feature_name(self):
+        return type(self).__name__.lower()
 
     def extract(self, fragment, **kwargs):
         raise NotImplementedError()

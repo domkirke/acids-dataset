@@ -22,7 +22,8 @@ class LMDBWriter(object):
         valid_exts: List[str] | None = None,
         file_parser: Callable = audio_paths_from_dir,
         filters: List[str] = [], 
-        exclude: List[str] = [] 
+        exclude: List[str] = [],
+        check: bool = False, 
     ):
         # parse dataset
         self.dataset_path = Path(dataset_path)
@@ -30,13 +31,31 @@ class LMDBWriter(object):
         # create output
         self.output_path = Path(output_path)
         if self.output_path.exists():
-            raise ValueError('%s seems to exist. Please provide a free path')
+            raise ValueError('%s seems to exist. Please provide a free path'%output_path)
         os.makedirs(self.output_path.resolve())
         # record parsers
         self.parser = parser
         self.max_db_size = max_db_size
         self.fragment_class = fragment_class
         self.features = features or []
+        if check:
+            print(f'Dataset path : {dataset_path}')
+            print(f'Output path : {output_path}')
+            print(f'filters: {filters};\texclude: {exclude}')
+            print(f'features : {features}')
+            print(f'Found {len(self._files)} files')
+            out = None
+            while out is None:
+                out = input('proceed? (y/n): ')
+                if out.lower() == "y":
+                    out = True
+                elif out.lower() == "n":
+                    out = False
+                else:
+                    out = None
+            if not out: 
+                exit()
+
 
     def _parse_dataset(self, file_parser, valid_exts = None, filters=None, exclude=None, dataset_path=None):
         dataset_path = dataset_path or self.dataset_path

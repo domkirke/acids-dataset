@@ -198,7 +198,7 @@ class RawParser(object):
         self.import_backend = import_backend
         self.loudness_threshold = loudness_threshold
         self.channels = channels
-        self._parse_features(features)
+        self._parse_features(features or [])
 
     @property
     def chunk_length_smp(self):

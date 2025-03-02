@@ -1,9 +1,14 @@
 import os
+import re
 import subprocess
 import setuptools
 
 # imports __version__
-exec(open('rave/version.py').read())
+__VERSION__ = None
+version_filepath = 'acids_dataset/version.py'
+if os.path.isfile(version_filepath):
+    exec(open(version_filepath).read())
+    __VERSION__ = globals()['__version__']
 
 
 def get_latest_git_tag():
@@ -26,27 +31,48 @@ extra_requirements = {
     'after': ["pretty-midi"]
 }
 
-__VERSION__ =  get_latest_git_tag()
+__VERSION__ =  __VERSION__ or get_latest_git_tag()
+
+from pathlib import Path
+def get_config_packages():
+    config_packages = []
+    for r, d, f in os.walk(Path(__file__).parent / "acids_dataset" / "configs"):
+        gin_files = list(filter(lambda x: os.path.splitext(x)[1] == ".gin", f))
+        if len(gin_files) > 0: 
+            # package_path = re.sub('^acids_dataset/', '', r)
+            config_packages.append("/".join(Path(r).parts))
+    return config_packages
+
+def get_config_package_data():
+    config_packages = {}
+    for r, d, f in os.walk(Path(__file__).parent / "acids_dataset" / "configs"):
+        gin_files = list(filter(lambda x: os.path.splitext(x)[1] == ".gin", f))
+        if len(gin_files) > 0: 
+            
+            config_packages["/".join(Path(r).parts)] = ['*.gin']
+    return config_packages
 
 
 setuptools.setup(
     name="acids-dataset",
-    version=__version__,  # type: ignore
-    author="Nils Démerlé, Axel Chemla--Romeu-Santos",
+    version=__VERSION__,  # type: ignore
+    author="Axel Chemla--Romeu-Santos, Nils Demerlé, Antoine Caillon",
     author_email="demerle@ircam.fr, chemla@ircam.fr",
     description="a pre-processed dataset library for generative audio ML",
     long_description=readme,
     long_description_content_type="text/markdown",
-    packages=setuptools.find_packages(),
+    packages = setuptools.find_packages() + ['acids_dataset/configs', 'acids_dataset/configs/features'],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
+    # package_data = get_config_package_data(),
+    package_data = {"": ["*.gin"]},
     entry_points={"console_scripts": [
-        "preprocess = cli:preprocess",
+        "acids-dataset = scripts.cli:main",
     ]},
     install_requires=requirements.split("\n"),
-    python_requires='>=3.9',
+    python_requires='>=3.11',
     include_package_data=True,
 )

@@ -1,4 +1,4 @@
-grpc_tools
+grpcio_tools
 pytest
 absl-py
 PyYAML
