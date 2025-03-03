@@ -88,6 +88,9 @@ class AfterMIDI(AcidsDatasetFeature):
         self.relative_midi_path = relative_midi_path
         self.device = device or torch.device('cpu')
 
+    def __repr__(self):
+        return f"AfterMIDI(allow_basic_pitch={self.allow_basic_pitch}, relative_midi_pitch={self.relative_midi_pitch}, device={self.device})"
+
 
     @property
     def has_hash(self):

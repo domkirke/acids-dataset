@@ -17,7 +17,7 @@ class Mel(AcidsDatasetFeature):
         super().__init__()
 
     def __repr__(self):
-        return "Mel(%s, sr=%d)"%(self.kwargs, self.sr)
+        return f"Mel(n_mels = {self.mel_spectrogram.n_mels}, n_fft = {self.mel_spectrogram.n_fft}, sr={self.sr})"
 
     @property
     def has_hash(self):

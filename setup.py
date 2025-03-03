@@ -39,7 +39,6 @@ def get_config_packages():
     for r, d, f in os.walk(Path(__file__).parent / "acids_dataset" / "configs"):
         gin_files = list(filter(lambda x: os.path.splitext(x)[1] == ".gin", f))
         if len(gin_files) > 0: 
-            # package_path = re.sub('^acids_dataset/', '', r)
             config_packages.append("/".join(Path(r).parts))
     return config_packages
 

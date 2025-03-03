@@ -17,7 +17,7 @@ class Loudness(AcidsDatasetFeature):
         self.kwargs = kwargs
 
     def __repr__(self):
-        return "Mel(%s, sr=%d)"%(self.kwargs, self.sr)
+        return "Loudness(sr=%d)"%(self.sr)
 
     @property
     def has_hash(self):

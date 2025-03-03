@@ -159,9 +159,9 @@ class RawParser(object):
     def __init__(
             self, 
             audio_path: str,
-            chunk_length: int | float, 
-            sr: int, 
-            channels: int, 
+            chunk_length: int | float = 131072, 
+            sr: int = 44100, 
+            channels: int = 1, 
             hop_length: int | float | None = None,
             overlap: float | None = None, 
             pad_mode: PadMode | str = PadMode.DISCARD,

@@ -8,10 +8,14 @@ from . import utils
 from . import transforms
 from . import features
 from . import fragments
-from . import datasets
 
 def get_fragment_class(class_name):
-    return getattr(fragments,class_name) 
+    obj = getattr(fragments, class_name, None) 
+    if not issubclass(obj, fragments.AudioFragment):
+        raise TypeError('fragment class %s not valid'%class_name)
+    return obj
+
+from . import datasets
 
 def get_metadata_from_path(dataset_path):
     dataset_path = Path(dataset_path)

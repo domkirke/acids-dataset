@@ -19,6 +19,8 @@ flags.DEFINE_integer('num_signal', 131072, help="chunk size of audio fragments")
 flags.DEFINE_integer('sample_rate', 44100, help="sample rate")
 flags.DEFINE_integer('channels', 1, help="number of audio channels")
 flags.DEFINE_boolean('check', True, help="has interactive mode for data checking.")
+flags.DEFINE_multi_string('filter', [], help="wildcard to filter target files")
+flags.DEFINE_multi_string('exclude', [], help="wildcard to exclude target files")
 
 def main(argv):
     preprocess_dataset(
@@ -27,7 +29,9 @@ def main(argv):
         configs = FLAGS.config, 
         check = FLAGS.check, 
         sample_rate=FLAGS.sample_rate, 
-        channels = FLAGS.channels
+        channels = FLAGS.channels, 
+        flt=FLAGS.filter, 
+        exclude=FLAGS.exclude,
     )
 
 

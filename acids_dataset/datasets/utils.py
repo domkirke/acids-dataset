@@ -25,10 +25,10 @@ def audio_paths_from_dir(
         if len(flt) > 0:
             filtered_candidates = []
             for f in flt: 
-                filtered_candidates.extend(list(filter(lambda x, r = f: fnmatch.fnmatch(x.relative_to(base_dir), r), parsed_candidates)))
+                filtered_candidates.extend(list(filter(lambda x, r = f: fnmatch.fnmatch(x.relative_to(base_dir.absolute()), r), parsed_candidates)))
             parsed_candidates = list(set(filtered_candidates))
         for e in exclude:
-            parsed_candidates = list(filter(lambda x, r = e: not fnmatch.fnmatch(x.relative_to(base_dir), r), parsed_candidates))
+            parsed_candidates = list(filter(lambda x, r = e: not fnmatch.fnmatch(x.relative_to(base_dir.absolute()), r), parsed_candidates))
         audio_candidates.extend(map(str, parsed_candidates))
     return audio_candidates 
 

@@ -6,6 +6,8 @@ import lmdb
 import tqdm
 from pathlib import Path
 from .utils import audio_paths_from_dir
+from .. import get_fragment_class
+from ..fragments import AudioFragment
 from ..features import AcidsDatasetFeature
 from ..parsers import RawParser, FileNotReadException
 from typing import List, Callable
@@ -18,7 +20,7 @@ class LMDBWriter(object):
         self, 
         dataset_path: str | Path, 
         output_path: str | Path,
-        fragment_class: str, 
+        fragment_class: str | AudioFragment = "AcidsFragment", 
         features: List[AcidsDatasetFeature] | None = None, 
         parser: str | object = RawParser, 
         max_db_size: int | float | None = 100, 
@@ -39,6 +41,7 @@ class LMDBWriter(object):
         # record parsers
         self.parser = parser
         self.max_db_size = max_db_size
+        if isinstance(fragment_class, str): fragment_class = get_fragment_class(fragment_class)
         self.fragment_class = fragment_class
         self.features = features or []
         self.metadata = {'filters': filters, 'exclude': exclude}
@@ -60,10 +63,11 @@ class LMDBWriter(object):
             if not out: 
                 exit()
 
-
     def _parse_dataset(self, file_parser, valid_exts = None, filters=None, exclude=None, dataset_path=None):
         dataset_path = dataset_path or self.dataset_path
         self._files = file_parser(dataset_path, valid_exts = valid_exts, flt=filters, exclude=exclude)
+        if len(self._files) == 0:
+            raise RuntimeError(f'no valid files were found in {dataset_path} with flt={filters} and exclude={exclude}.')
         self.valid_exts = valid_exts
         self.filters = filters
         self.exclude = exclude
@@ -136,7 +140,7 @@ class LMDBWriter(object):
                 "n_seconds": n_seconds,
                 "writer_class": type(self).__name__,
                 "fragment_class": self.fragment_class.__name__, 
-                "features": feature_keys,
+                "features": {self.get_feature_name(f): str(f) for f in self.features},
                 **self.metadata, 
                 **metadata,
             }, f)
