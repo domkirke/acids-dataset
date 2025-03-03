@@ -9,7 +9,7 @@ try:
 except ImportError as e: 
     sys.path.append(str((Path(__file__).parent / '..').resolve()))
     import acids_dataset
-from acids_dataset import get_fragment_class
+from acids_dataset import get_writer_class_from_path, get_metadata_from_path, get_fragment_class
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('path', None, 'dataset path', required=True)
@@ -19,15 +19,12 @@ flags.DEFINE_boolean('check_metadata', False, 'check metadata discrepencies in d
 
 def main(argv):
     dataset_path = Path(FLAGS.path)
-    metadata_path = dataset_path / "metadata.yaml"
-    with open(metadata_path, "r") as f:
-        metadata = yaml.safe_load(f)
-    print('dataset at path %s :'%dataset_path)
+    writer_class = get_writer_class_from_path(FLAGS.path)
+    metadata = get_metadata_from_path(FLAGS.path)
     for k, v in metadata.items():
         print(f"{k}: {v}")
     if FLAGS.files:
-        writer_class = getattr(acids_dataset.datasets, metadata.get('wrtier_class', 'LMDBWriter'))
-        env = writer_class.open(str(dataset_path))
+        env = writer_class.open(dataset_path)
         with env.begin() as txn:
             feature_hash = writer_class.get_feature_hash(txn)
             print('files : ')
