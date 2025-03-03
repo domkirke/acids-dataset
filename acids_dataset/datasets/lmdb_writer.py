@@ -1,4 +1,7 @@
 import os
+import re
+import dill 
+import shutil
 import lmdb
 import tqdm
 from pathlib import Path
@@ -38,6 +41,7 @@ class LMDBWriter(object):
         self.max_db_size = max_db_size
         self.fragment_class = fragment_class
         self.features = features or []
+        self.metadata = {'filters': filters, 'exclude': exclude}
         if check:
             print(f'Dataset path : {dataset_path}')
             print(f'Output path : {output_path}')
@@ -72,7 +76,6 @@ class LMDBWriter(object):
     def get_feature_name(self, f):
         return getattr(f, "feature_name", type(f).__name__.lower())
 
-
     def _init_feature_hash(self, features):
         feature_hash = {'original_path': {}}
         for f in features:
@@ -89,6 +92,11 @@ class LMDBWriter(object):
         for feature in self.features:
             feature.close()
         
+    def _add_feature_hash_to_lmdb(self, txn, feature_hash):
+        txn.put(
+            "feature_hash".encode('utf-8'),
+            dill.dumps(feature_hash)
+        )
 
     def build(self):
         env = lmdb.open(str(self.output_path.resolve()), map_size=self.max_db_size * 1024 ** 3)
@@ -104,6 +112,7 @@ class LMDBWriter(object):
             for load_fn in current_parser:
                 try:
                     current_data = load_fn(self.fragment_class)
+                    current_file = str(Path(current_file).relative_to(self.dataset_path.resolve()))
                     feature_hash['original_path'][current_file] = feature_hash['original_path'].get(current_file, [])
                     with env.begin(write=True) as txn:
                         for fragment in current_data:
@@ -115,23 +124,51 @@ class LMDBWriter(object):
                             )
                             audio_id += 1
                             n_seconds += metadata.get('chunk_length', 0) 
-                            feature_hash['original_path'][current_file].append(current_key)
+                            feature_hash['original_path'][str(current_file)].append(current_key)
+                        self._add_feature_hash_to_lmdb(txn, feature_hash)
                 except FileNotReadException: 
                         pass
+
+        # write metadata
         metadata_path = self.output_path / "metadata.yaml"
         with open(metadata_path, "w+") as f:
             yaml.safe_dump({
                 "n_seconds": n_seconds,
+                "writer_class": type(self).__name__,
                 "fragment_class": self.fragment_class.__name__, 
                 "features": feature_keys,
+                **self.metadata, 
                 **metadata,
             }, f)
+        extras_path = self.output_path / "code"
+        os.makedirs(extras_path, exist_ok=True)
+        fragment_class_name = self.fragment_class.__module__.split('.')[-1]
+
+        proto_path = Path(__file__).parent / ".." / "fragments" / "interfaces" / f"{fragment_class_name}.proto"
+        if os.path.exists(proto_path):
+            shutil.copyfile(proto_path, extras_path / proto_path.name)
+        compiled_path = Path(__file__).parent / ".." / "fragments" / "compiled" / f"{fragment_class_name}_pb2.py"
+        if os.path.exists(compiled_path):
+            shutil.copyfile(compiled_path, extras_path / compiled_path.name)
+
         env.close()
         self._close_features()
 
+    @classmethod
+    def open(cls, path):
+        return lmdb.open(str(path), lock=False, readonly=True)
 
+    @classmethod
+    def get_feature_hash(cls, txn):
+        return dill.loads(txn.get('feature_hash'.encode('utf-8'))) 
 
-
-        
-
+    @classmethod
+    def get_file_ids(cls, txn):
+        file_keys = list(txn.cursor().iternext(values=False))
+        try:
+            idx = file_keys.index(b'feature_hash')
+            del file_keys[idx]
+        except IndexError:
+            pass
+        return file_keys
 

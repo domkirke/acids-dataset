@@ -68,7 +68,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     # package_data = get_config_package_data(),
-    package_data = {"": ["*.gin"]},
+    package_data = {"": ["*.gin"], "acids_dataset.transforms.basic_pitch_torch": ['assets/*.pth']},
     entry_points={"console_scripts": [
         "acids-dataset = scripts.cli:main",
     ]},

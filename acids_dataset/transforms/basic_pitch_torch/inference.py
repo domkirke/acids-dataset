@@ -38,6 +38,48 @@ from .constants import (
 from .note_creation import *
 
 
+
+def frame(
+    x: torch.Tensor,
+    *,
+    frame_length: int,
+    hop_length: int,
+    axis: int = -1,
+) -> np.ndarray:
+ 
+    # x = np.array(x, copy=False, subok=subok)
+
+    if x.shape[axis] < frame_length:
+        raise ValueError(
+            f"Input is too short (n={x.shape[axis]:d}) for frame_length={frame_length:d}"
+        )
+
+    if hop_length < 1:
+        raise ValueError(f"Invalid hop_length: {hop_length:d}")
+
+    # put our new within-frame axis at the end for now
+    out_strides = x.stride() + tuple([x.stride()[axis]])
+
+    # Reduce the shape on the framing axis
+    x_shape_trimmed = list(x.shape)
+    x_shape_trimmed[axis] -= frame_length - 1
+
+    out_shape = tuple(x_shape_trimmed) + tuple([frame_length])
+    xw = x.as_strided(out_shape, out_strides)
+
+    if axis < 0:
+        target_axis = axis - 1
+    else:
+        target_axis = axis + 1
+
+    xw = torch.moveaxis(xw, -1, target_axis)
+
+    # Downsample along the target axis
+    slices = [slice(None)] * xw.ndim
+    slices[axis] = slice(0, None, hop_length)
+    return xw[tuple(slices)]
+
+
 def frame_with_pad(x: np.array, frame_length: int, hop_size: int) -> np.array:
     """
     Extends librosa.util.frame with end padding if required, similar to 
@@ -48,8 +90,9 @@ def frame_with_pad(x: np.array, frame_length: int, hop_size: int) -> np.array:
     """
     n_frames = int(np.ceil((x.shape[0] - frame_length) / hop_size)) + 1
     n_pads = (n_frames - 1) * hop_size + frame_length - x.shape[0]
-    x = np.pad(x, (0, n_pads), mode="constant")
-    framed_audio = librosa.util.frame(x, frame_length=frame_length, hop_length=hop_size)
+    x = torch.nn.functional.pad(x, (0, n_pads), mode="constant")
+    # framed_audio = librosa.util.frame(x, frame_length=frame_length, hop_length=hop_size)
+    framed_audio = frame(x, frame_length=frame_length, hop_length=hop_size)
     return framed_audio
 
 
@@ -91,12 +134,8 @@ def get_audio_input(
 
     """
     assert overlap_len % 2 == 0, "overlap_length must be even, got {}".format(overlap_len)
-
-    #audio_original, _ = librosa.load(str(audio_path), sr=AUDIO_SAMPLE_RATE, mono=True)
-    audio_original = audio.numpy()
-
-    original_length = audio_original.shape[0]
-    audio_original = np.concatenate([np.zeros((int(overlap_len / 2),), dtype=np.float32), audio_original])
+    original_length = audio.shape[0]
+    audio_original = torch.cat([torch.zeros(int(overlap_len / 2),).to(audio), audio])
     audio_windowed, window_times = window_audio_file(audio_original, hop_size)
     return audio_windowed, window_times, original_length
 
@@ -149,10 +188,8 @@ def run_inference(
     hop_size = AUDIO_N_SAMPLES - overlap_len
 
     audio_windowed, _, audio_original_length = get_audio_input(audio, overlap_len, hop_size)
-    audio_windowed = torch.from_numpy(audio_windowed).T
+    audio_windowed = audio_windowed.T.to(device)
         
-    audio_windowed = audio_windowed.to(device)
-
     output = model(audio_windowed)
     unwrapped_output = {k: unwrap_output(output[k], audio_original_length, n_overlapping_frames) for k in output}
 

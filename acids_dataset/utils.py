@@ -1,4 +1,6 @@
 import importlib
+import os
+from pathlib import Path
 import random
 import math
 import torch
@@ -91,10 +93,3 @@ def checklist(item, n=1, copy=False):
 
 def get_random_hash(n=8):
     return "".join([chr(random.randrange(97,122)) for i in range(n)])
-
-@gin.configurable()
-def append_features(features=None):
-    if features is None: 
-        return []
-    else:
-        return [f() for f in checklist(features)]
