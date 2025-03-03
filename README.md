@@ -9,7 +9,7 @@ To install acids-dataset, just install it through pip.
 pip install acids-dataset
 ```
 
-## Usage
+## Usage with command line
 
 ### Preprocessing
 `acids-dataset` is available as a command-line tool to easily pre-process a dataset path. For example, simply parse a dataset for [after](http://github.com/acids-ircam/AFTER) with 
@@ -51,6 +51,23 @@ scripts/preprocess.py:
     (an integer)
 ```
 
+You can also declaratively use this package in Python using the `preprocess_dataset` function of the `acids_dataset` package:
+```python
+import acids_dataset
+
+acids_dataset.preprocess_dataset(
+        dataset_path
+        out = out_path, 
+        configs = config_list, 
+        check = False,
+        sample_rate = 44100,
+        channels = 1
+        flt = [], 
+        exclude=[]
+    )
+```
+
+
 ### Embedding features
 `acids_dataset` has specific configuration files to embed metadata (like audio descriptors) in the database, to make them accessible during training. For example, to add loudness and mel profiles for each data chunk, you may add the `mel` and `loudness` configs: 
 ```bash
@@ -75,3 +92,8 @@ You can also add the `--files` to list all the parsed audio files, or the `--che
 | `features/mel.gin`      | adding mel spectrogram to buffer.                                                                        |
 | `features/loudness.gin` | adding loudness to buffer.                                                                               |
 | `features/midi.gin`     | adding midi information to buffer.                                                                       |
+
+
+<a href="#customize"></a>
+## Customize
+### Customize features.
