@@ -9,7 +9,7 @@ try:
 except ImportError as e: 
     sys.path.append(str((Path(__file__).parent / '..').resolve()))
     import acids_dataset
-from acids_dataset import get_writer_class_from_path, get_metadata_from_path, get_fragment_class
+from acids_dataset import get_writer_class_from_path, get_metadata_from_path, get_fragment_class_from_path
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('path', None, 'dataset path', required=True)
@@ -32,11 +32,9 @@ def main(argv):
             for i, (f, idx) in enumerate(feature_hash['original_path'].items()):
                 print(f'{re.sub(f"^{dataset_path}", "", f)}: {len(idx)} chunks')
             if FLAGS.check_metadata:
-                file_keys = writer_class.get_file_ids(txn)
-                fragment_class = get_fragment_class(metadata['fragment_class'])
                 missing_metadata = {}
-                for key in file_keys:
-                    ae = fragment_class(txn.get(key))
+                fragment_class = get_fragment_class_from_path(dataset_path)
+                for key, ae in writer_class.iter_files(txn, fragment_class):
                     for k in metadata_keys:
                         try:
                             ae.get_buffer(k)

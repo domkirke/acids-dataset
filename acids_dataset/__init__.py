@@ -35,5 +35,9 @@ def get_feature_hash_from_path(path):
     writer_class = get_writer_class_from_path(path)
     return writer_class.get_feature_hash(path)
 
+def get_fragment_class_from_path(path):
+    metadata = get_metadata_from_path(path)
+    return get_fragment_class(metadata['fragment_class'])
+
 from . import datasets
 from .preprocess import *

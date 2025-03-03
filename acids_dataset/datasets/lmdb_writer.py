@@ -172,3 +172,8 @@ class LMDBWriter(object):
             pass
         return file_keys
 
+    @classmethod
+    def iter_files(cls, txn, fragment_class):
+        file_keys = cls.get_file_ids(txn)        
+        return {f: fragment_class(txn.get(f)) for f in file_keys}.items()
+
