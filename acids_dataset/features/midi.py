@@ -91,11 +91,6 @@ class AfterMIDI(AcidsDatasetFeature):
     def __repr__(self):
         return f"AfterMIDI(allow_basic_pitch={self.allow_basic_pitch}, relative_midi_pitch={self.relative_midi_pitch}, device={self.device})"
 
-
-    @property
-    def has_hash(self):
-        return self.hash_from_feature is not None
-
     @classmethod
     def _get_bp_instance(cls, device, sr):
         if cls.bp.get((device, sr)) is None:
@@ -149,7 +144,7 @@ class AfterMIDI(AcidsDatasetFeature):
     def close(self):
         shutil.rmtree(self._tmp_midi_folder)
 
-    def extract(self, fragment, current_key, feature_hash):
+    def from_fragment(self, fragment, write: bool = True):
         audio_path = getattr(fragment, "audio_path", None)
         assert audio_path, f"{type(self)} requires an initialized audio_path metadata from fragment"
         if audio_path in self._file_buffer:
@@ -161,7 +156,7 @@ class AfterMIDI(AcidsDatasetFeature):
             audio_data = fragment.get_audio('waveform')
             sr = fragment.get_buffer('waveform').sampling_rate
             midi_data = self.get_midi(audio_path=audio_path, audio=audio_data, sr=sr)
-        fragment.put_buffer(key=self.feature_name, b=pickle.dumps(midi_data), shape=None, unpickler=lambda x: pickle.loads(x))
-        if self.hash_from_feature: 
-            feature_hash[self.hash_from_feature(midi_data)].append(current_key)
+        if write:
+            fragment.put_buffer(key=self.feature_name, b=pickle.dumps(midi_data), shape=None, unpickler=lambda x: pickle.loads(x))
+        return midi_data
         

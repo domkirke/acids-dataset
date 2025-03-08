@@ -4,6 +4,7 @@ from absl import app
 
 AVAILABLE_SCRIPTS = [
     'preprocess', 
+    'update',
     'info'
 ]
 
@@ -29,6 +30,10 @@ def main():
         from scripts import preprocess
         sys.argv[0] = preprocess.__name__
         app.run(preprocess.main)
+    if command == 'update':
+        from scripts import update
+        sys.argv[0] = preprocess.__name__
+        app.run(update.main)
     elif command == 'info':
         from scripts import info 
         sys.argv[0] = info.__name__

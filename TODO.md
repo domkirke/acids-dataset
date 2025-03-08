@@ -8,4 +8,7 @@
     - pitch as feature (with f0 / pitch - oct modes)
     - mels
     - cqt
-    - custom name parsing
+    - custom name parsing [in kwargs]
+    - ambisonics
+    - f0
+    - pitch / octave [with pesto]

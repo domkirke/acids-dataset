@@ -1,4 +1,5 @@
 import importlib
+from contextlib import ContextDecorator
 import os
 from pathlib import Path
 import random
@@ -6,6 +7,7 @@ import math
 import torch
 import torchaudio
 import gin
+
 
 
 _CACHED_MODULES = {}
@@ -93,3 +95,27 @@ def checklist(item, n=1, copy=False):
 
 def get_random_hash(n=8):
     return "".join([chr(random.randrange(97,122)) for i in range(n)])
+
+@gin.configurable()
+def append_features(features=None):
+    if features is None: 
+        return []
+    else:
+        return [f() for f in checklist(features)]
+
+
+class GinEnv(ContextDecorator):
+    def __init__(self, config_file):
+        self._config_file = config_file
+        self._config_str = None
+
+    def __enter__(self):
+        self._config_str = gin.operative_config_str()
+        gin.unlock_config()
+        gin.clear_config()
+        gin.parse_config_file(self._config_file)
+
+    def __exit__(self, *exc):
+        gin.unlock_config()
+        gin.clear_config()
+        gin.parse_config(self._config_str)

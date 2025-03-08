@@ -191,7 +191,7 @@ class AudioFragment(object):
         meta_buffer = self.ae.buffers["metadata"]
         meta_buffer = dict_from_buffer(meta_buffer)
         meta_buffer.update(kwargs)
-        meta_buffer.data = dict_to_buffer(meta_buffer)
+        self.ae.buffers["metadata"].data = dict_to_buffer(meta_buffer)
 
     def delete_from_metadata(self, *args):
         meta_buffer = self.ae.buffers["metadata"]

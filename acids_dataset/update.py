@@ -2,39 +2,32 @@ import os
 import re
 import gin
 import logging
-from pathlib import Path
-from .datasets import LMDBWriter
 from typing import List
-
-from .datasets import get_writer_class
+from pathlib import Path
+from . import get_metadata_from_path, get_writer_class_from_path
+from . import datasets
 from .features import AcidsDatasetFeature, append_meta_regexp
-from .utils import append_features, GinEnv
+from .utils import checklist, GinEnv, append_features
 
 
-def get_default_output_path(path):
-    return (Path(".") / f"{path.stem}_preprocessed").resolve().absolute()
-
-
-def preprocess_dataset(
+def update_dataset(
     path, 
-    out = None, 
-    config: str = 'default.gin', 
     features: List[str | AcidsDatasetFeature] | None = None,
-    check=False, 
-    sample_rate = 44000,
-    channels = 1,
+    data: List[str] | None = None,
+    check: bool = False, 
     flt = [],
     exclude = [],
     meta_regexp = [], 
-    force: bool = False, 
-    waveform: bool = True, 
+    overwrite: bool = False,
     override = []
     ):
+    path = Path(path)
     # parse gin constants
     gin.add_config_file_search_path(Path(__file__).parent / "configs")
     gin.add_config_file_search_path(path)
-    gin.constant('SAMPLE_RATE', sample_rate)
-    gin.constant('CHANNELS', channels)
+    metadata = get_metadata_from_path(path)
+    gin.constant('SAMPLE_RATE', metadata['sr'])
+    gin.constant('CHANNELS', metadata['channels'])
 
     # parse features
     operative_features = []
@@ -53,12 +46,16 @@ def preprocess_dataset(
         elif isinstance(f, AcidsDatasetFeature):
             operative_features.append(f)
 
-    gin.bind_parameter('append_features.features', operative_features)
-    gin.parse_config_files_and_bindings([config], override)
-    path = Path(path)
-    out = out or get_default_output_path(path)
-
+    # parse original config
+    gin.parse_config_files_and_bindings([str(path / "config.gin")], override)
     operative_features = append_meta_regexp(operative_features, meta_regexp=meta_regexp)
-    writer_class = get_writer_class(filters=flt, exclude=exclude)
-    writer = writer_class(path, out, features=operative_features, check=check, force=force, waveform=waveform)
-    writer.build()
+
+    # build writer
+    writer_class = get_writer_class_from_path(path)
+    writer_class.update(
+        path, 
+        operative_features,
+        data, 
+        check=check, 
+        overwrite=overwrite
+    )

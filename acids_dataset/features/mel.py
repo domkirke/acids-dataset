@@ -27,13 +27,15 @@ class Mel(AcidsDatasetFeature):
     def default_feature_name(self):
         return f"mel_{self.mel_spectrogram.n_mels}"
 
-    def extract(self, fragment, current_key, feature_hash):
+    def from_fragment(self, fragment, write: bool = True):
         data = torch.from_numpy(fragment.raw_audio).float()
         try: 
             mels = self.mel_spectrogram(data)
         except RuntimeError:
             return  
-        fragment.put_array(self.feature_name, mels)
+        if write:
+            fragment.put_array(self.feature_name, mels)
+        return mels
         
 
 

@@ -41,15 +41,15 @@ def main(argv):
                         except KeyError:
                             audio_path = getattr(ae, "audio_path", None)
                             if audio_path is None:
-                                missing_metadata[key] = missing_metadata.get(key, []).append(k)
+                                missing_metadata[key] = (missing_metadata.get(key) or []).append(k)
                             else:
-                                missing_metadata[audio_path] = missing_metadata.get(audio_path, []).append(k)
-        if len(missing_metadata) == 0:
-            print('-------\nNo metadata discrepencies.')
-        else:
-            print('-------\n[WARNING] Found metadata discrepencies :')
-            for k, v in missing_metadata.items():
-                print(f"{k}: {v} missing")
+                                missing_metadata[audio_path] = (missing_metadata.get(audio_path) or []).append(k)
+                if len(missing_metadata) == 0:
+                    print('-------\nNo metadata discrepencies.')
+                else:
+                    print('-------\n[WARNING] Found metadata discrepencies :')
+                    for k, v in missing_metadata.items():
+                        print(f"{k}: {v} missing")
 
     
 if __name__ == "__main__":

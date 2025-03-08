@@ -4,6 +4,23 @@ import re
 import fnmatch
 
 
+def parse_meta_regexp(meta_regexps):
+    target_features = {}
+    for i, m in enumerate(meta_regexps):
+        features_tmp = re.findall(r'{{\w+?}}', m)
+        if len(features_tmp) > 0:
+            for f in features_tmp: 
+                f_name = re.match(r"{{(\w+)}}", f).groups()[0]
+                target_features[f_name] = target_features.get(f_name, []) + [i]
+        else:
+            logging.warning('regexp %s provided no valid feature.'%m)
+    return [RegexpFeature(*[meta_regexps[i] for i in v], name=k) for k, v in target_features.items()]
+
+def append_meta_regexp(features, meta_regexp):
+    return features + parse_meta_regexp(meta_regexp)
+
+
+
 def glob_to_regex(glob_pattern, feature_name):
     """
     Convert a glob pattern with extraction like **/music/*_{{idx}}.wav to a regex pattern.

@@ -27,13 +27,14 @@ class Loudness(AcidsDatasetFeature):
     def default_feature_name(self):
         return "loudness"
 
-    def extract(self, fragment, current_key, feature_hash):
+    def from_fragment(self, fragment, write: bool = True):
         data = torch.from_numpy(fragment.raw_audio).float()
         try: 
             data_loudness = loudness(data, self.sr)
         except RuntimeError:
             return  
-        fragment.put_array(self.feature_name, data_loudness)
+        if write:
+            fragment.put_array(self.feature_name, data_loudness)
         
 
 

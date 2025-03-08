@@ -73,7 +73,26 @@ acids_dataset.preprocess_dataset(
 ```bash
 acids-dataset preprocess --path /path/to/your/dataset --out /target/path/for/preprocessed --config features/loudness --config features/mel
 ```
-of course, you can customize these features ; please see the section [customize](#customize) below.
+of course, you can customize these features ; please see the section [customize](#customize) below. Features can be conveniently extracted from the file names by providing `--meta_regexp` patterns, that can be understood as glob patterns with placeholders contained withing double curvy braces. For example, let's imagine (like Slakh) that your dataset is organised as folows :
+```
+dataset/
+  Track00001/
+    mix.flac
+    stems/
+      S01.flac
+      S02.flac
+      ...
+  Track00002/
+    mix.flac
+    stems/
+      S01.flac
+      S02.flac
+```
+you can extract respectively the track ids and the instrument ids into `id` and `inst` features by running :
+```bash
+acids-dataset preprocess --path /path/to/your/dataset --exclude "**/mix.flac" --meta_regexp "Track{{id}}/stems/S{{inst}}.flac" 
+```
+
 
 ### Get information
 You can quickly monitor the content of a parsed metadata using the `info` metadata : 
@@ -93,7 +112,63 @@ You can also add the `--files` to list all the parsed audio files, or the `--che
 | `features/loudness.gin` | adding loudness to buffer.                                                                               |
 | `features/midi.gin`     | adding midi information to buffer.                                                                       |
 
-
 <a href="#customize"></a>
+
 ## Customize
 ### Customize features.
+
+### Implementing features
+You can add your own features by subclassing the `AcidsDatasetFeature` object. 
+
+```python
+class AcidsDatasetFeature(object):
+    denylist = []
+    has_hash = False # (1) <---- see below to see how datasets are hashed
+    def __init__(
+            self, 
+            name: Optional[str] = None,
+            hash_from_feature: Optional[Callable] = None, 
+        ):
+        super(CustomFeature, self).__init__(name, hash_from_feature)
+
+    @property
+    def default_feature_name(self):
+        """defines the default feature name, is not provided"""
+        return type(self).__name__.lower()
+
+    def pre_chunk_hook(self, path, audio, sr) -> None:
+      """this is a hook to perform some optional operations before audio chunking."""
+      pass
+
+    def close(self):
+        """if some features has side effects like buffering, empty buffers and delete files"""
+        pass
+
+    def from_file(self, path, start_pos, chunk_length):
+      # extraction code here....
+      return feature
+
+    def from_audio(self, audio):
+      # extraction code here...
+      return feature
+
+    def from_fragment(self, fragment, write: bool = None):
+        """extract the data from fragment, and writes into it if write is True"""
+        audio_data = fragment.get_audio("waveform")
+        meta = self.from_audio(audio_data)
+        # you can also access the original file
+        metadata = fragment.get_metadata()
+        meta = self.from_file(metadata['audio_path'], metadata['start_pos'], metadata['chunk_length'])
+        if write: 
+          fragment.put_array(self.feature_name, meta)
+        return meta
+```
+
+The `AcidsDatasetFeature` is the base object for all audio features. One instance is created for one feature, and the object is called when : 
+- An audio file is gonna be chunked, through a call to `pre_chunk_hook` (for some buffering, or some analysis that would require the whole file)
+- During writing, when the audio chunks are written in the lmdb database. 
+
+`AcidsDatasetFeature` also automatically fills up a hash during writing, allowing to get all the audio indexes belonging to a given hash. However, this is not automatic: this hash process is performed if :  
+- the `has_hash` attribute is `True` (the feature has then to be hashable ; arrays, tensors, or lists, are typically non hashable.)
+- a `hash_from_feature(self, ft)` callback is defined in the class, or provided at initialization (allowing to be gin configurable). If a callback is provided at initialization, it erases in any case the one defined (or not) in the class.
+

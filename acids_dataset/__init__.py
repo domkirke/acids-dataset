@@ -6,6 +6,7 @@ gin.add_config_file_search_path(Path(__file__).parent.parent / "custom_configs")
 
 from . import utils
 from . import transforms
+from . import parsers
 from . import features
 from . import fragments
 
@@ -15,7 +16,11 @@ def get_fragment_class(class_name):
         raise TypeError('fragment class %s not valid'%class_name)
     return obj
 
-from . import datasets
+def get_parser_class(class_name):
+    obj = getattr(parsers, class_name, None) 
+    # if not issubclass(obj, fragments.AudioFragment):
+    #     raise TypeError('fragment class %s not valid'%class_name)
+    return obj
 
 def get_metadata_from_path(dataset_path):
     dataset_path = Path(dataset_path)
@@ -43,5 +48,10 @@ def get_fragment_class_from_path(path):
     metadata = get_metadata_from_path(path)
     return get_fragment_class(metadata['fragment_class'])
 
+def get_parser_class_from_path(path):
+    metadata = get_metadata_from_path(path)
+    return get_parser_class(metadata['parser_class'])
+
 from . import datasets
 from .preprocess import *
+from .update import *

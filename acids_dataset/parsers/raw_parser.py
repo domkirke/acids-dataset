@@ -31,9 +31,11 @@ class TorchaudioBackend(object):
         channels,
         bformat,
         loudness_threshold, 
-        features
+        features, 
+        dataset_path, 
+        waveform
     ) -> List[Callable]:
-        def _load_file(fragment_class = dict):
+        def _load_file(fragment_class = dict, audio_path=audio_path):
             try:
                 wav, orig_sr = torchaudio.load(audio_path)
             except RuntimeError: 
@@ -67,9 +69,12 @@ class TorchaudioBackend(object):
                     if chunk_loudness < loudness_threshold:
                         del wav[i]
                         continue
+                fragment_audio_path = str(audio_path)
+                if dataset_path is not None:
+                    fragment_audio_path = Path(fragment_audio_path).resolve().parent.relative_to(dataset_path)
                 current_fragment = fragment_class(
-                        audio_path = audio_path, 
-                        audio = wav[i], 
+                        audio_path = fragment_audio_path, 
+                        audio = wav[i] if waveform else None, 
                         start_pos = start_pos[i] / sr,
                         length = chunk_length,
                         file_length = file_length,
@@ -168,9 +173,12 @@ class RawParser(object):
             import_backend: ImportBackend | str = ImportBackend.TORCHAUDIO,
             bformat: str = "int16", 
             loudness_threshold: float | None = None,
-            features: List[AcidsDatasetFeature] | None = None
+            features: List[AcidsDatasetFeature] | None = None,
+            dataset_path: str | None = None,
+            waveform: bool = True
         ):
         self.audio_path = audio_path 
+        self.dataset_path = dataset_path
         assert Path(self.audio_path).exists(), f"{self.audio_path} does not seem to exist. Please provide a valid file"
         if isinstance(chunk_length, int):
             chunk_length = chunk_length / sr
@@ -198,6 +206,7 @@ class RawParser(object):
         self.import_backend = import_backend
         self.loudness_threshold = loudness_threshold
         self.channels = channels
+        self.waveform = waveform
         self._parse_features(features or [])
 
     @property
@@ -237,7 +246,9 @@ class RawParser(object):
             channels=self.channels,
             bformat=self.bformat,
             loudness_threshold=self.loudness_threshold, 
-            features = self._features
+            features = self._features, 
+            dataset_path=self.dataset_path, 
+            waveform=self.waveform
         ))
 
 

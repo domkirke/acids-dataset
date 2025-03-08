@@ -2,8 +2,9 @@ import os
 import yaml
 import fnmatch
 from pathlib import Path
-from typing import List
+from typing import List, Any, Dict
 from ..utils import checklist
+from collections import UserDict
 
 _VALID_EXTS = ['.mp3', '.wav', '.aif', '.aiff', '.flac', '.opus']
 
@@ -42,3 +43,51 @@ def read_metadata(path):
         out = yaml.safe_load(yaml_file)
     return out
     
+class FeatureHashComponent(UserDict):
+    def __setitem__(self, key: Any, item: Any) -> None:
+        if key not in self.data: self.data[key] = []
+        return super().__setitem__(key, item)
+
+    def __getitem__(self, key: Any) -> List[Any]:
+        if key not in self.data: self.data[key] = []
+        return self.data[key]
+
+class FeatureHash(UserDict):
+    def __setitem__(self, key: Any, item: Dict[str, Any]) -> None:
+        assert isinstance(item, dict), "FeatureHash can be only populated by dicts"
+        if key not in self.data: self.data[key] = FeatureHashComponent(**item)
+
+    def __getitem__(self, key: Any) -> FeatureHashComponent:
+        if key not in self.data: self.data[key] = FeatureHashComponent()
+        return self.data[key]
+    
+    def to_dict(self):
+        """filters out empty keys"""
+        out_dict = {}
+        for k, v in self.data.items():
+            if len(v) == 0:
+                continue
+            out_dict[k] = dict(v)
+        return out_dict
+
+    def __iter__(self):
+        iter_dict = self.to_dict()
+        return iter(iter_dict)
+
+class KeyIterator():
+    def __init__(self, start=0):
+        self._start = start
+    def __iter__(self):
+        self.current_id = self._start
+        return self
+    def __next__(self):
+        key = f"{self.current_id:09d}"
+        self.current_id += 1
+        return key
+    @property
+    def current_idx(self):
+        return int(self.current_id)
+    
+
+
+        
