@@ -34,7 +34,7 @@ def main(argv):
             if FLAGS.check_metadata:
                 missing_metadata = {}
                 fragment_class = get_fragment_class_from_path(dataset_path)
-                for key, ae in writer_class.iter_files(txn, fragment_class):
+                for key, ae in writer_class.iter_fragments(txn, fragment_class):
                     for k in metadata_keys:
                         try:
                             ae.get_buffer(k)

@@ -230,3 +230,9 @@ class AudioFragment(object):
     def as_dict(self):
         return {k: self.get(k) for k in self.ae.buffers}
 
+    def has_buffer(self, name):
+        return name in self.ae.buffers
+
+    def has_metadata(self, name):
+        return name in dict_from_buffer(self.ae.buffers["metadata"])
+

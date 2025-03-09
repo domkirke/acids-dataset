@@ -52,6 +52,7 @@ def update_dataset(
 
     # build writer
     writer_class = get_writer_class_from_path(path)
+    writer_class = datasets.get_writer_class(writer_class, flt, exclude)
     writer_class.update(
         path, 
         operative_features,

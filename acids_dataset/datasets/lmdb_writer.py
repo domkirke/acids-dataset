@@ -1,4 +1,5 @@
 import os
+import logging
 import collections
 import re
 import dill 
@@ -17,6 +18,7 @@ import yaml
 
 @gin.configurable(module="writer")
 class LMDBWriter(object):
+    non_buffer_keys = ['feature_hash', 'features']
     def __init__(
         self, 
         dataset_path: str | Path, 
@@ -95,8 +97,13 @@ class LMDBWriter(object):
         return feature_hash
         
     @staticmethod
-    def _extract_features(fragment, features, current_key, feature_hash):
+    def _extract_features(fragment, features, current_key, feature_hash, overwrite=False):
         for feature in features:
+            feature_name = feature.feature_name
+            if fragment.has_buffer(feature_name) or fragment.has_metadata(feature_name):
+                if not overwrite:
+                    logging.info(f"metadata {feature_name} already present in fragment {current_key} ; skipping")
+                    continue
             feature.extract(fragment=fragment, 
                             current_key=current_key, 
                             feature_hash=feature_hash)
@@ -202,28 +209,42 @@ class LMDBWriter(object):
         
 
     @classmethod
-    def open(cls, path):
-        return lmdb.open(str(path), lock=False, readonly=True)
+    def open(cls, path, readonly=True, lock=False):
+        return lmdb.open(str(path), lock=lock, readonly=readonly)
 
     @classmethod
     def get_feature_hash(cls, txn):
         return dill.loads(txn.get('feature_hash'.encode('utf-8'))) 
 
     @classmethod
-    def get_file_ids(cls, txn):
-        file_keys = list(txn.cursor().iternext(values=False))
-        try:
-            idx = file_keys.index(b'feature_hash')
-            del file_keys[idx]
-        except IndexError:
-            pass
-        return file_keys
+    def iter_fragment_keys(cls, txn):
+        for key in txn.cursor().iternext(values=False):
+            if key in cls.non_buffer_keys:
+                yield key
+            
+        # file_keys = txn.cursor().iternext(values=False)
+        # try:
+        #     idx = file_keys.index(b'feature_hash')
+        #     idx = file_keys.index(b'features')
+        #     del file_keys[idx]
+        # except IndexError:
+        #     pass
+        # return file_keys
 
     @classmethod
-    def iter_files(cls, txn, fragment_class):
-        file_keys = cls.get_file_ids(txn)        
-        return {f: fragment_class(txn.get(f)) for f in file_keys}.items()
+    def iter_fragments(cls, txn, fragment_class):
+        for key in txn.cursor().iternext(values=False):
+            if key in cls.non_buffer_keys:
+                yield key, fragment_class(txn.get(key))
 
+    @classmethod
+    def parse_from_path(cls, path):
+        env = cls.open(path)
+        fragment_class = get_fragment_class_from_path(path)
+        with env.begin() as txn:
+            feature_hash = cls.get_feature_hash(txn)
+            iterator = cls.iter_fragments(txn, fragment_class)
+        return iterator, feature_hash
 
     @classmethod
     def update(cls, 
@@ -257,16 +278,19 @@ class LMDBWriter(object):
         with env.begin(write=True) as txn:
             # parse features
             features = list(dill.loads(txn.get('features'.encode('utf-8'))).values()) + features
+            fragment_class = get_fragment_class_from_path(path)
+            feature_hash = cls.get_feature_hash(txn)
 
-            #TODO create novel features in existing data
+            if len(features) > 0:
+                for key in cls.iter_fragment_keys(txn):
+                    fragment = fragment_class(txn.get(key))
+                    cls._extract_features(fragment, features, key, feature_hash, overwrite=overwrite)
 
             # then, add additional data if needed
             parser_class = get_parser_class_from_path(path)
-            fragment_class = get_fragment_class_from_path(path)
             files = []
             filters = filters or []
             exclude = exclude or []
-            feature_hash = cls.get_feature_hash(txn)
             if len(data) > 0:
                 for data_path in data:
                     files.append((data_path, 
@@ -295,10 +319,6 @@ class LMDBWriter(object):
                 n_chunks = key_iterator.current_idx
                 metadata.update(n_seconds=n_seconds, n_chunks=n_chunks, features={cls.get_feature_name(f): str(f) for f in features})
 
-            # parse additional features if needed
-            # if len(features) > 0:
-            #     pass
-            
             cls._add_feature_hash_to_lmdb(txn, feature_hash)
             cls._close_features(features)
             cls._add_features_to_lmdb(txn, features)
