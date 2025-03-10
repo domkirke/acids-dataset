@@ -5,20 +5,9 @@ import torch
 import pathlib
 import os
 import numpy as np
+from .base import Transform
 from .basic_pitch_torch.model import BasicPitchTorch
 from .basic_pitch_torch.inference import predict
-from scipy.signal import lfilter
-from random import random
-
-
-class BaseTransform():
-
-    def __init__(self, sr: int | None, name: str | None) -> None:
-        self.sr = sr
-        self.name = name
-
-    def forward(self, x: np.array) -> Dict[str, np.array]:
-        raise NotImplementedError()
 
 
 # key is model name, value is record path ; tuple with mirrors
@@ -27,7 +16,7 @@ _BASICPITCH_MODELS = {
 }
 
 
-class BasicPitch(BaseTransform):
+class BasicPitch(Transform):
     available_models = _BASICPITCH_MODELS
     def __init__(self, 
                  sr, 
@@ -83,24 +72,3 @@ class BasicPitch(BaseTransform):
                                       audio=waveform.squeeze().cpu().float(),
                                       device=self.device)
             return midi_data
-
-
-def random_angle(min_f=20, max_f=8000, sr=24000):
-    min_f = np.log(min_f)
-    max_f = np.log(max_f)
-    rand = np.exp(random() * (max_f - min_f) + min_f)
-    rand = 2 * np.pi * rand / sr
-    return rand
-
-
-def pole_to_z_filter(omega, amplitude=.9):
-    z0 = amplitude * np.exp(1j * omega)
-    a = [1, -2 * np.real(z0), abs(z0)**2]
-    b = [abs(z0)**2, -2 * np.real(z0), 1]
-    return b, a
-
-
-def random_phase_mangle(x, min_f, max_f, amp, sr):
-    angle = random_angle(min_f, max_f, sr)
-    b, a = pole_to_z_filter(angle, amp)
-    return lfilter(b, a, x)

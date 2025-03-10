@@ -11,9 +11,10 @@ from . import OUT_TEST_DIR, test_name
 from pathlib import Path
 from acids_dataset.datasets import audio_paths_from_dir, LMDBWriter, read_metadata
 from acids_dataset.parsers import raw_parser as raw
-from acids_dataset.fragments import AcidsFragment
+from acids_dataset.loaders import AudioDataset
 from acids_dataset.utils import loudness
-from acids_dataset import get_fragment_class, features
+from acids_dataset import transforms
+from acids_dataset import get_fragment_class, features, preprocess_dataset
 from .datasets import get_available_datasets, get_dataset, get_available_datasets_with_filters
 
 
@@ -120,6 +121,29 @@ def test_slakh_dataset(config, test_name, test_k=2):
             audio = ae.get_audio("waveform")
             midi = ae.get_data("midi")
             loudness = ae.get_array("loudness")
+
+@pytest.mark.parametrize("dataset", get_available_datasets())
+@pytest.mark.parametrize("output_pattern,transforms", [
+    ("waveform", []),
+    ("waveform,", [transforms.RandomGain()]),
+    ("{waveform,}", {'waveform': transforms.RandomGain()})
+])
+def test_audio_dataset(dataset, transforms, output_pattern, test_name):
+    preprocessed_path = OUT_TEST_DIR / f"{dataset}_preprocessed"
+    if not preprocessed_path.exists():
+        dataset_path = get_dataset(dataset)
+        preprocess_dataset(dataset_path, out = preprocessed_path)
+    dataset = AudioDataset(preprocessed_path, transforms, output_pattern)
+    assert len(dataset) > 0, "dataset seems empty"
+    for i in range(len(dataset)):
+        out = dataset[i]
+
+    
+
+
+
+    
+
 
         
 

@@ -1,6 +1,6 @@
 import gin
 from .utils import *
-from .lmdb_writer import LMDBWriter
+from .lmdb_writer import LMDBWriter, LMDBLoader
 
 @gin.configurable()
 def get_writer_class(writer_class = LMDBWriter, filters=[], exclude=[]):

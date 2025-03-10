@@ -75,18 +75,26 @@ class FeatureHash(UserDict):
         return iter(iter_dict)
 
 class KeyIterator():
-    def __init__(self, start=0):
+    def __init__(self, start=0, n=9):
         self._start = start
+        self._n = n
+        self.current_id = None
     def __iter__(self):
         self.current_id = self._start
         return self
     def __next__(self):
-        key = f"{self.current_id:09d}"
+        key = f"{self.current_id:0{self._n}d}"
         self.current_id += 1
         return key
     @property
     def current_idx(self):
         return int(self.current_id)
+    def from_int(self, x: int):
+        assert x < self.current_id, f"key iterator has generated {self.current_id} so far."
+        key = f"{x:0{self._n}d}"
+        return key
+
+    
     
 
 

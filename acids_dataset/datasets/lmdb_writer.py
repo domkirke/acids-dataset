@@ -1,7 +1,6 @@
 import os
 import logging
 import collections
-import re
 import dill 
 import shutil
 import lmdb
@@ -16,9 +15,12 @@ from typing import List, Callable
 import gin
 import yaml
 
+
+non_buffer_keys = ['feature_hash', 'features', 'keygen']
+
 @gin.configurable(module="writer")
 class LMDBWriter(object):
-    non_buffer_keys = ['feature_hash', 'features']
+    
     def __init__(
         self, 
         dataset_path: str | Path, 
@@ -158,28 +160,35 @@ class LMDBWriter(object):
                 pass
         return n_seconds
 
+    @classmethod
+    def _add_keygen_to_lmdb(cls, txn, keygen):
+        txn.put(
+            "keygen".encode('utf-8'), 
+            dill.dumps(keygen)
+        )
+
     def build(self):
         env = lmdb.open(str(self.output_path.resolve()), map_size=self.max_db_size * 1024 ** 3)
         n_seconds = 0
         metadata = {}
         feature_hash = self._init_feature_hash()
         dataset_path = self.dataset_path.resolve().absolute()
-        key_iterator = iter(KeyIterator())
+        key_generator = iter(KeyIterator())
         with env.begin(write=True) as txn:
             for current_file in tqdm.tqdm(self._files):
                 parser = self.parser(current_file, features=self.features, dataset_path = dataset_path, waveform=self.waveform) 
                 if len(metadata) == 0:
                     metadata = self._update_metadata(parser.get_metadata(), metadata)
-                parsed_time = self._add_file_to_lmdb(txn, parser, self.features, feature_hash, key_iterator, self.fragment_class, dataset_path)
+                parsed_time = self._add_file_to_lmdb(txn, parser, self.features, feature_hash, key_generator, self.fragment_class, dataset_path)
                 n_seconds += parsed_time
             type(self)._add_feature_hash_to_lmdb(txn, feature_hash)
             self._close_features(self.features)
             type(self)._add_features_to_lmdb(txn, self.features)
-
+            type(self)._add_keygen_to_lmdb(txn, key_generator)
 
         # write metadata
         metadata_path = self.output_path / "metadata.yaml"
-        n_chunks = key_iterator.current_idx
+        n_chunks = key_generator.current_idx
         with open(metadata_path, "w+") as f:
             yaml.safe_dump({
                 "n_seconds": n_seconds,
@@ -207,45 +216,6 @@ class LMDBWriter(object):
 
         env.close()
         
-
-    @classmethod
-    def open(cls, path, readonly=True, lock=False):
-        return lmdb.open(str(path), lock=lock, readonly=readonly)
-
-    @classmethod
-    def get_feature_hash(cls, txn):
-        return dill.loads(txn.get('feature_hash'.encode('utf-8'))) 
-
-    @classmethod
-    def iter_fragment_keys(cls, txn):
-        for key in txn.cursor().iternext(values=False):
-            if key in cls.non_buffer_keys:
-                yield key
-            
-        # file_keys = txn.cursor().iternext(values=False)
-        # try:
-        #     idx = file_keys.index(b'feature_hash')
-        #     idx = file_keys.index(b'features')
-        #     del file_keys[idx]
-        # except IndexError:
-        #     pass
-        # return file_keys
-
-    @classmethod
-    def iter_fragments(cls, txn, fragment_class):
-        for key in txn.cursor().iternext(values=False):
-            if key in cls.non_buffer_keys:
-                yield key, fragment_class(txn.get(key))
-
-    @classmethod
-    def parse_from_path(cls, path):
-        env = cls.open(path)
-        fragment_class = get_fragment_class_from_path(path)
-        with env.begin() as txn:
-            feature_hash = cls.get_feature_hash(txn)
-            iterator = cls.iter_fragments(txn, fragment_class)
-        return iterator, feature_hash
-
     @classmethod
     def update(cls, 
         path: str, 
@@ -303,7 +273,10 @@ class LMDBWriter(object):
                 if not overwrite: 
                     new_file_list.difference_update(common_files)
                 
-                key_iterator = iter(KeyIterator(n_chunks))
+                try:
+                    key_generator = dill.loads(txn.get(b'keygen'))
+                except Exception as e:
+                    key_generator = iter(KeyIterator(n_chunks))
                 status_bar = tqdm.tqdm(total=len(new_file_list), desc="parsing additional files...")
                 status_bar.display()
                 
@@ -314,9 +287,9 @@ class LMDBWriter(object):
                         parser = parser_class(current_file, 
                                               features=features, 
                                               dataset_path = data_path)
-                        parsed_time = cls._add_file_to_lmdb(txn, parser, features, feature_hash, key_iterator, fragment_class, data_path)
+                        parsed_time = cls._add_file_to_lmdb(txn, parser, features, feature_hash, key_generator, fragment_class, data_path)
                         n_seconds += parsed_time
-                n_chunks = key_iterator.current_idx
+                n_chunks = key_generator.current_idx
                 metadata.update(n_seconds=n_seconds, n_chunks=n_chunks, features={cls.get_feature_name(f): str(f) for f in features})
 
             cls._add_feature_hash_to_lmdb(txn, feature_hash)
@@ -331,4 +304,61 @@ class LMDBWriter(object):
         env.close()
         cls._close_features(features)
 
+
+class LMDBLoader(object):
+
+    def __init__(self, db_path, output_type: str = "numpy"):
+        self._db_path = db_path
+        self._database = self.open(db_path, readonly=True) 
+        self._metadata = get_metadata_from_path(db_path)
+        self._fragment_class = get_fragment_class(self._metadata.get('fragment_class'))
+        self._output_type = output_type
+        self._length = self._metadata.get('n_chunks')
+        with self._database.begin() as txn:
+            if self._length is None:
+                self._length = len(list(txn.cursor().iternext(values=False)))
+            self._keygen = dill.loads(txn.get('keygen'.encode('utf-8')))
+
+    def __len__(self):
+        return self._length
+
+    def __getitem__(self, idx):
+        idx_key = self._keygen.from_int(idx)
+        with self._database.begin() as txn:
+            fg = self._fragment_class(txn.get(idx_key.encode('utf-8')), output_type=self._output_type)
+        return fg
+
+    def open(self, path, readonly=True, lock=False):
+        return lmdb.open(str(path), lock=lock, readonly=readonly)
+
+    def get_feature_hash(self, txn):
+        transaction = txn or self._database.begin()
+        feature_hash = dill.loads(transaction.get('feature_hash'.encode('utf-8'))) 
+        if txn is not None: transaction.__exit__()
+        return feature_hash
+
+    def iter_fragment_keys(self, txn=None):
+        transaction = txn or self._database.begin()
+        for key in txn.cursor().iternext(values=False):
+            if key in non_buffer_keys:
+                yield key
+        if txn is not None: transaction.__exit__()
+            
+    def iter_fragments(self, txn=None):
+        transaction = txn or self._database.begin()
+        with self._database.begin(readonly=True) as txn:
+            for key in txn.cursor().iternext(values=False):
+                if key in non_buffer_keys:
+                    yield key, self._fragment_class(txn.get(key))
+        if txn is not None: transaction.__exit__()
+
+    def parse_from_path(self, path):
+        env = self.open(path)
+        with env.begin() as txn:
+            feature_hash = self.get_feature_hash(txn)
+            iterator = self.iter_fragments(txn)
+        return iterator, feature_hash
+
+LMDBWriter.loader = "LMDBLoader"
+LMDBLoader.writer = "LMDBWriter"
 

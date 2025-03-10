@@ -2,7 +2,7 @@
 import dill
 import torch
 import numpy as np
-from typing import Any, Optional, Callable
+from typing import Any, Optional, Callable, Literal
 from types import MethodType
 from .utils import dict_from_buffer, dict_to_buffer
 from ..utils import get_backend
@@ -10,6 +10,8 @@ from ..utils import get_backend
 ArrayType = np.ndarray
 if get_backend("torch"):
     ArrayType = ArrayType | get_backend("torch").Tensor
+
+DEFAULT_OUTPUT_TYPE = "numpy"
 
 
 class AudioFragment(object):
@@ -20,26 +22,28 @@ class AudioFragment(object):
             - automatically parsing metadata as attributes
             - base accessing functions for parsers and datasets (raw_audio, etc.)
         """
-    ExampleClass = None
+    
     def __init__(
             self, 
             byte_string: Optional[str] = None, 
+            output_type: Literal["numpy", "torch", "jax"] = DEFAULT_OUTPUT_TYPE,
             **kwargs):
         self.__dict__["_setters"] = {}
         self.__dict__["_getters"] = {}
         self.__dict__["_deletters"] = {}
         if byte_string is not None: 
-            self.init_from_byte_string(byte_string)
+            self.init_from_byte_string(byte_string, output_type=output_type)
         else:
             self.ae = self.ExampleClass()
             self.set_metadata({})
-            self.init_from_kwargs(**kwargs)
+            self.init_from_kwargs(**kwargs, output_type=output_type)
         if getattr(self, "ExampleClass", None) is None:
             raise TypeError("Class %s has no bounded protoclass ; when overloading AudioFragment class, please provide ExampleClass class attribute")
         self._parse_properties()
 
-    def init_from_byte_string(self, bs):
+    def init_from_byte_string(self, bs, output_type=DEFAULT_OUTPUT_TYPE):
         self.ae = self.ExampleClass.FromString(bs)    
+        self.output_type = output_type
 
     def _record_property_from_metadata(self, attribute):
         def _property_getter_fn(self, key=attribute):

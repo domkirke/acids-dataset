@@ -53,5 +53,6 @@ def get_parser_class_from_path(path):
     return get_parser_class(metadata['parser_class'])
 
 from . import datasets
+from . import loaders
 from .preprocess import *
 from .update import *

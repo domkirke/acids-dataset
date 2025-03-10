@@ -37,6 +37,7 @@ def preprocess_dataset(
     gin.constant('CHANNELS', channels)
 
     # parse features
+    features = features or []
     operative_features = []
     for i, f in enumerate(features):
         if isinstance(f, str):
