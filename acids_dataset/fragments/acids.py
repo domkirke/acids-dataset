@@ -50,7 +50,6 @@ class AcidsFragment(AudioFragment):
             ) -> None:
 
         metadata = dict(kwargs)
-        super().init_from_kwargs(output_type=output_type)
         #TODO: clean, that, select mandatory fields (make a dataclass?)
         if audio_path is not None: metadata['audio_path'] = str(audio_path)
         if start_pos is not None: metadata['start_pos'] = str(start_pos)
