@@ -93,6 +93,57 @@ you can extract respectively the track ids and the instrument ids into `id` and 
 acids-dataset preprocess --path /path/to/your/dataset --exclude "**/mix.flac" --meta_regexp "Track{{id}}/stems/S{{inst}}.flac" 
 ```
 
+### Updating a dataset 
+Even if a dataset is preprocessed, it can be embedded additional features and additional data with the `update` command : 
+```bash 
+acids-dataset update --help                                                 15:51
+
+       USAGE: scripts.update [flags]
+flags:
+
+scripts.update:
+  --[no]check: recomputes the feature if already present in the dataset
+    (default: 'true')
+  --data: add audio files to the target dataset.;
+    repeat this option to specify a list of values
+    (default: '[]')
+  --exclude: wildcard to exclude target files;
+    repeat this option to specify a list of values
+    (default: '[]')
+  --feature: add features to the target dataset.;
+    repeat this option to specify a list of values
+    (default: '[]')
+  --filter: wildcard to filter target files;
+    repeat this option to specify a list of values
+    (default: '[]')
+  --meta_regexp: parses additional blob wildcards as features.;
+    repeat this option to specify a list of values
+    (default: '[]')
+  --override: add audio files to the target dataset.;
+    repeat this option to specify a list of values
+    (default: '[]')
+  --[no]overwrite: recomputes the feature if already present in the dataset, and overwrites existing files
+    (default: 'false')
+  --path: dataset path
+```
+
+For example, if you want to update a pre-processed dataset with the `loudness` feature and add some more data, you can use
+```bash
+acids-dataset update --path path/to/preprocessed --data path/to/additional/data --feature features/loudness
+```
+
+or, alternatively, use the python high-level function `update`
+```python
+from acids_dataset import update
+from acids_dataset.features import Loudness
+
+update_dataset(
+  "path/to/preprocessed", 
+  data=["path/to/additional/data"],
+  features=[Loudness()]
+)
+```
+
 
 ### Get information
 You can quickly monitor the content of a parsed metadata using the `info` metadata : 

@@ -1,2 +1,3 @@
 append_features:
     features = [@features.AfterMIDI]
+    device = %DEVICE

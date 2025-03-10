@@ -331,11 +331,17 @@ class LMDBLoader(object):
     def open(self, path, readonly=True, lock=False):
         return lmdb.open(str(path), lock=lock, readonly=readonly)
 
-    def get_feature_hash(self, txn):
+    def get_feature_hash(self, txn=None):
         transaction = txn or self._database.begin()
         feature_hash = dill.loads(transaction.get('feature_hash'.encode('utf-8'))) 
         if txn is not None: transaction.__exit__()
         return feature_hash
+
+    def get_features(self, txn=None):
+        transaction = txn or self._database.begin()
+        features = dill.loads(transaction.get('features'.encode('utf-8'))) 
+        if txn is not None: transaction.__exit__()
+        return features 
 
     def iter_fragment_keys(self, txn=None):
         transaction = txn or self._database.begin()

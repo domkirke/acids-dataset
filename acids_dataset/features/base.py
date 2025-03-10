@@ -3,7 +3,7 @@ import torch
 import torchaudio
 from collections import UserDict
 from absl import logging
-from ..utils import load_file
+from ..utils import load_file, get_default_accelerated_device
 
 class FeatureException(Exception):
     pass
@@ -31,11 +31,20 @@ class AcidsDatasetFeature(object):
             self, 
             name: Optional[str] = None,
             hash_from_feature: Optional[Callable] = None, 
+            device: torch.device = None
         ):
         self.feature_name = name or self.default_feature_name
         self.hash_from_feature = hash_from_feature or getattr(type(self), "hash_from_feature", None)
         if self.hash_from_feature is not None: 
             self.has_hash = True
+        self.to(device)
+
+    def to(self, device = None):
+        if device is None: 
+            device = get_default_accelerated_device()
+        if isinstance(device, str):
+            device = torch.device(device)
+        self.device = device
 
     @property
     def default_feature_name(self):

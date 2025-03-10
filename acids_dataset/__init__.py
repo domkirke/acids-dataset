@@ -30,11 +30,11 @@ def get_metadata_from_path(dataset_path):
     return metadata
 
 def get_writer_from_metadata(metadata):
-    return getattr(datasets, metadata.get('writer_class', 'LMDBWriter'))
+    return getattr(writers, metadata.get('writer_class', 'LMDBWriter'))
 
 def get_writer_class_from_path(path):
     metadata = get_metadata_from_path(path)
-    return getattr(datasets, metadata.get('writer_class', 'LMDBWriter'))
+    return getattr(writers, metadata.get('writer_class', 'LMDBWriter'))
 
 def get_env_from_path(path):
     writer_class = get_writer_class_from_path(path)
@@ -52,7 +52,7 @@ def get_parser_class_from_path(path):
     metadata = get_metadata_from_path(path)
     return get_parser_class(metadata['parser_class'])
 
+from . import writers
 from . import datasets
-from . import loaders
 from .preprocess import *
 from .update import *

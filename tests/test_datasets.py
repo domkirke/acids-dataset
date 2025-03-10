@@ -9,9 +9,9 @@ import gin
 
 from . import OUT_TEST_DIR, test_name
 from pathlib import Path
-from acids_dataset.datasets import audio_paths_from_dir, LMDBWriter, read_metadata
+from acids_dataset.writers import audio_paths_from_dir, LMDBWriter, read_metadata
 from acids_dataset.parsers import raw_parser as raw
-from acids_dataset.loaders import AudioDataset
+from acids_dataset.datasets import AudioDataset
 from acids_dataset.utils import loudness
 from acids_dataset import transforms
 from acids_dataset import get_fragment_class, features, preprocess_dataset

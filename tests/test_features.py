@@ -8,7 +8,7 @@ import lmdb, random
 from .datasets import get_available_datasets, get_dataset
 
 from acids_dataset import get_fragment_class
-from acids_dataset.datasets import LMDBWriter, read_metadata
+from acids_dataset.writers import LMDBWriter, read_metadata
 from acids_dataset.features import Mel, Loudness, AfterMIDI
 
 

@@ -32,7 +32,7 @@ def main():
         app.run(preprocess.main)
     if command == 'update':
         from scripts import update
-        sys.argv[0] = preprocess.__name__
+        sys.argv[0] = update.__name__
         app.run(update.main)
     elif command == 'info':
         from scripts import info 

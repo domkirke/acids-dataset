@@ -1,12 +1,13 @@
 import os
 import re
+import torch
 import gin
 import logging
 from pathlib import Path
-from .datasets import LMDBWriter
+from .writers import LMDBWriter
 from typing import List
 
-from .datasets import get_writer_class
+from .writers import get_writer_class
 from .features import AcidsDatasetFeature, append_meta_regexp
 from .utils import append_features, GinEnv
 
@@ -28,13 +29,17 @@ def preprocess_dataset(
     meta_regexp = [], 
     force: bool = False, 
     waveform: bool = True, 
-    override = []
+    override = [],
+    device: str | None = None
     ):
     # parse gin constants
+
     gin.add_config_file_search_path(Path(__file__).parent / "configs")
     gin.add_config_file_search_path(path)
     gin.constant('SAMPLE_RATE', sample_rate)
     gin.constant('CHANNELS', channels)
+    gin.constant('DEVICE', device)
+
 
     # parse features
     features = features or []
@@ -50,7 +55,7 @@ def preprocess_dataset(
                 print('[error] problem parsing configuration %s'%f)
                 raise e
             with GinEnv(f):
-                operative_features.extend(append_features())
+                operative_features.extend(append_features(device=device))
         elif isinstance(f, AcidsDatasetFeature):
             operative_features.append(f)
 

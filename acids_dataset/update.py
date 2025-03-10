@@ -5,9 +5,9 @@ import logging
 from typing import List
 from pathlib import Path
 from . import get_metadata_from_path, get_writer_class_from_path
-from . import datasets
+from . import writers
 from .features import AcidsDatasetFeature, append_meta_regexp
-from .utils import checklist, GinEnv, append_features
+from .utils import GinEnv, append_features
 
 
 def update_dataset(
@@ -19,7 +19,8 @@ def update_dataset(
     exclude = [],
     meta_regexp = [], 
     overwrite: bool = False,
-    override = []
+    override = [], 
+    device: str | None = None
     ):
     path = Path(path)
     # parse gin constants
@@ -28,6 +29,7 @@ def update_dataset(
     metadata = get_metadata_from_path(path)
     gin.constant('SAMPLE_RATE', metadata['sr'])
     gin.constant('CHANNELS', metadata['channels'])
+    gin.constant('DEVICE', device)
 
     # parse features
     operative_features = []
@@ -52,7 +54,7 @@ def update_dataset(
 
     # build writer
     writer_class = get_writer_class_from_path(path)
-    writer_class = datasets.get_writer_class(writer_class, flt, exclude)
+    writer_class = writers.get_writer_class(writer_class, flt, exclude)
     writer_class.update(
         path, 
         operative_features,

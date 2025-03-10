@@ -1,6 +1,6 @@
 import torch
 from typing import Optional, List , Dict
-from .. import datasets
+from .. import writers
 from .. import transforms, get_writer_class_from_path
 from .utils import _outs_from_pattern, _transform_outputs
 
@@ -19,7 +19,7 @@ class AudioDataset(torch.utils.data.Dataset):
                  channels: int = 1, 
                  **kwargs) -> None:
         self._db_path = db_path
-        self._loader = getattr(datasets, get_writer_class_from_path(db_path).loader)(self._db_path, output_type="torch")
+        self._loader = getattr(writers, get_writer_class_from_path(db_path).loader)(self._db_path, output_type="torch")
         self._output_pattern = output_pattern
         self._transforms = _parse_transforms_with_pattern(transforms, self._output_pattern)
         self._channels = channels

@@ -7,3 +7,4 @@ features.Mel:
 
 append_features:
     features = @features.Mel
+    device = %DEVICE

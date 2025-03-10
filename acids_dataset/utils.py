@@ -80,7 +80,6 @@ def loudness(waveform: torch.Tensor, sample_rate: int):
     LKFS = kweight_bias + 10 * torch.log10(energy_weighted)
     return LKFS
 
-
 def checklist(item, n=1, copy=False):
     """Repeat list elemnts
     """
@@ -97,11 +96,11 @@ def get_random_hash(n=8):
     return "".join([chr(random.randrange(97,122)) for i in range(n)])
 
 @gin.configurable()
-def append_features(features=None):
+def append_features(features=None, device=None):
     if features is None: 
         return []
     else:
-        return [f() for f in checklist(features)]
+        return [f(device=device) for f in checklist(features)]
 
 
 class GinEnv(ContextDecorator):
@@ -119,3 +118,30 @@ class GinEnv(ContextDecorator):
         gin.unlock_config()
         gin.clear_config()
         gin.parse_config(self._config_str)
+
+def get_available_cuda_device():
+    #TODO (or not, let user decide with CUDA_VISIBLE_DEVICES)
+    return torch.device('cuda')
+
+
+def get_default_accelerated_device():
+    cuda_available = os.environ.get('USE_CUDA', True) or torch.cuda.is_available()
+    if cuda_available:
+        if os.environ.get('CUDA_AVAILABLE_DEVICES'):
+            get_available_cuda_device()
+        else:
+            return torch.device('cuda')
+    mps_available = os.environ.get('USE_MPS', False) or torch.mps.is_available()
+    if mps_available: 
+        return torch.device('mps')
+    return torch.device('cpu')
+
+def get_accelerated_device(accelerator = None):
+    if accelerator == "cpu":
+        return torch.device("cpu")
+    elif accelerator == "cuda":
+        return torch.device('cpu') if not torch.cuda.is_available() else get_available_cuda_device()
+    elif accelerator == "mps":
+        return torch.device('cpu') if not torch.mps.is_available() else torch.device('mps')
+    else:
+        raise ValueError('accelerator value %s not handled.'%accelerator)

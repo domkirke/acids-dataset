@@ -77,7 +77,6 @@ class AfterMIDI(AcidsDatasetFeature):
     def __init__(self, 
                  allow_basic_pitch: bool = True, 
                  relative_midi_path: str | None = None, 
-                 device: torch.device = None,
                  **kwargs):
         """acids-dataset adaptation of AFTER implementation pipeline designed by Nils Demerlé."""
         super().__init__(**kwargs)
@@ -86,7 +85,6 @@ class AfterMIDI(AcidsDatasetFeature):
         os.makedirs(self._tmp_midi_folder, exist_ok=True)
         self.allow_basic_pitch = allow_basic_pitch
         self.relative_midi_path = relative_midi_path
-        self.device = device or torch.device('cpu')
 
     def __repr__(self):
         return f"AfterMIDI(allow_basic_pitch={self.allow_basic_pitch}, relative_midi_pitch={self.relative_midi_pitch}, device={self.device})"
@@ -159,4 +157,3 @@ class AfterMIDI(AcidsDatasetFeature):
         if write:
             fragment.put_buffer(key=self.feature_name, b=pickle.dumps(midi_data), shape=None, unpickler=lambda x: pickle.loads(x))
         return midi_data
-        
