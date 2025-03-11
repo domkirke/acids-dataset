@@ -1,8 +1,8 @@
 
 RawParser:
-    chunk_length = 262144
-    hop_length = 131072
-    pad_mode = "constant"
+    chunk_length = %CHUNK_LENGTH
+    hop_length = %HOP_LENGTH
+    pad_mode = "zero_pad"
     sr = %SAMPLE_RATE
     channels = %CHANNELS 
 

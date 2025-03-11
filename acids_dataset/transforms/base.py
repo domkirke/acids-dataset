@@ -12,7 +12,7 @@ class Transform():
         self.sr = sr
         self.name = name
 
-    def forward(self, x):
+    def __call__(self, x):
         raise NotImplementedError()
 
 @gin.configurable(module="transforms")
@@ -20,8 +20,15 @@ class RandomApply(Transform):
     """
     Apply transform with probability p
     """
-    def __init__(self, transform, p=.5, batchwise: bool = True):
-        self.transform = transform
+    def __init__(self, 
+                 p=.5, 
+                 sr: int | None = None, 
+                 name: str | None = None, 
+                 transform = None, 
+                 batchwise: bool = True):
+        super().__init__(sr=sr, name=name)
+        if self.transform:
+            self.transform = transform
         self.batchwise = batchwise
         self.p = p
 

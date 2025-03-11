@@ -15,7 +15,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string('path', None, help="dataset path", required=True)
 flags.DEFINE_string('out', None, help="parsed dataset location")
 flags.DEFINE_string('config', "default.gin", help="dataset config")
-flags.DEFINE_multi_string('feature', "default.gin", help="config files")
+flags.DEFINE_multi_string('feature', [], help="config files")
 flags.DEFINE_multi_string('filter', [], help="wildcard to filter target files")
 flags.DEFINE_multi_string('exclude', [], help="wildcard to exclude target files")
 flags.DEFINE_multi_string('meta_regexp', [], help="additional regexp for metadata parsing")
@@ -25,8 +25,10 @@ flags.DEFINE_integer('sample_rate', 44100, help="sample rate")
 flags.DEFINE_integer('channels', 1, help="number of audio channels")
 flags.DEFINE_boolean('check', True, help="has interactive mode for data checking.")
 flags.DEFINE_boolean('force', False, help="force dataset preprocessing if folder already exists")
+flags.DEFINE_integer('max_db_size', 100, help="maximum database size")
+flags.DEFINE_boolean('dyndb', False, help="allows dynamical resize of database")
+flags.DEFINE_integer('chunk_length', 131072, help="number of samples per chunk")
 flags.DEFINE_boolean('waveform', True, help="no waveform parsing")
-
 
 
 def main(argv):
@@ -36,6 +38,7 @@ def main(argv):
         config = FLAGS.config, 
         features = FLAGS.feature,
         check = FLAGS.check, 
+        chunk_length = FLAGS.chunk_length, 
         sample_rate=FLAGS.sample_rate, 
         channels = FLAGS.channels, 
         flt=FLAGS.filter, 
@@ -44,6 +47,8 @@ def main(argv):
         force=FLAGS.force,
         waveform=FLAGS.waveform, 
         override=FLAGS.override,
+        max_db_size = FLAGS.max_db_size, 
+        dyndb = FLAGS.dyndb
     )
 
 

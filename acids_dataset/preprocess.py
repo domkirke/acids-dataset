@@ -22,6 +22,8 @@ def preprocess_dataset(
     config: str = 'default.gin', 
     features: List[str | AcidsDatasetFeature] | None = None,
     check=False, 
+    chunk_length: int = 131072,
+    hop_length: int = None, 
     sample_rate = 44000,
     channels = 1,
     flt = [],
@@ -30,16 +32,19 @@ def preprocess_dataset(
     force: bool = False, 
     waveform: bool = True, 
     override = [],
-    device: str | None = None
+    device: str | None = None, 
+    max_db_size: int = 100, 
+    dyndb: bool = False
     ):
     # parse gin constants
 
     gin.add_config_file_search_path(Path(__file__).parent / "configs")
     gin.add_config_file_search_path(path)
     gin.constant('SAMPLE_RATE', sample_rate)
+    gin.constant('CHUNK_LENGTH', chunk_length)
+    gin.constant('HOP_LENGTH', hop_length or chunk_length // 2)
     gin.constant('CHANNELS', channels)
     gin.constant('DEVICE', device)
-
 
     # parse features
     features = features or []
@@ -66,5 +71,12 @@ def preprocess_dataset(
 
     operative_features = append_meta_regexp(operative_features, meta_regexp=meta_regexp)
     writer_class = get_writer_class(filters=flt, exclude=exclude)
-    writer = writer_class(path, out, features=operative_features, check=check, force=force, waveform=waveform)
+    writer = writer_class(path, 
+                          out, 
+                          features=operative_features, 
+                          check=check, 
+                          force=force, 
+                          waveform=waveform, 
+                          max_db_size=max_db_size, 
+                          dyndb=dyndb)
     writer.build()

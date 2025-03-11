@@ -72,6 +72,6 @@ setuptools.setup(
         "acids-dataset = scripts.cli:main",
     ]},
     install_requires=requirements.split("\n"),
-    python_requires='>=3.11',
+    python_requires='>=3.10',
     include_package_data=True,
 )

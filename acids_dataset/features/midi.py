@@ -65,13 +65,12 @@ def crop_midi(midi_data, tstart, tend, length):
     return midi_data
 
 
-
 @gin.configurable(module="features", denylist=AcidsDatasetFeature.denylist)
 class AfterMIDI(AcidsDatasetFeature):
     # dictionary of BasicPitch instances, referenced by devices, shared across instances.
     bp = {} 
     feature_name = "midi"
-    searchable_midi_paths = [".", "../midi", "./midi"]
+    searchable_midi_paths = [".", "../midi", "./midi", "../MIDI", "./MIDI"]
     tmp_buffer_paths = _TMP_MIDI_PATH
 
     def __init__(self, 
@@ -80,14 +79,14 @@ class AfterMIDI(AcidsDatasetFeature):
                  **kwargs):
         """acids-dataset adaptation of AFTER implementation pipeline designed by Nils Demerlé."""
         super().__init__(**kwargs)
+        self.allow_basic_pitch = allow_basic_pitch
+        self.relative_midi_path = relative_midi_path
         self._file_buffer = FileHash()
         self._tmp_midi_folder = _TMP_MIDI_PATH / get_random_hash(8)
         os.makedirs(self._tmp_midi_folder, exist_ok=True)
-        self.allow_basic_pitch = allow_basic_pitch
-        self.relative_midi_path = relative_midi_path
 
     def __repr__(self):
-        return f"AfterMIDI(allow_basic_pitch={self.allow_basic_pitch}, relative_midi_pitch={self.relative_midi_pitch}, device={self.device})"
+        return f"AfterMIDI(allow_basic_pitch={self.allow_basic_pitch}, relative_midi_path={self.relative_midi_path}, device={self.device})"
 
     @classmethod
     def _get_bp_instance(cls, device, sr):

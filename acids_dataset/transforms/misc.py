@@ -6,9 +6,10 @@ from random import random
 import torchaudio
 from torchaudio.functional import lfilter
 
-from .base import Transform
+from .base import Transform, RandomApply
 from typing import Tuple
 from .resample_poly import resample_poly
+from .utils import random_phase_mangle, normalize_signal, get_derivator, get_integrator
 
 
 
@@ -60,6 +61,7 @@ class RandomPitch(Transform):
         up, down = self.ratio_list[ratio_idx]
         x_pitched = resample_poly(x, up, down, padtype='mean', axis=-1)
         return x_pitched
+
 
 @gin.configurable(module="transforms")
 class RandomCrop(Transform):
@@ -151,6 +153,25 @@ class RandomMute(Transform):
         mask = torch.bernoulli(torch.full((x.shape[0],), 1 - self.prob))
         return x * mask
 
+@gin.configurable(module="transforms")
+class RandomPhase(RandomApply):
+    def __init__(self, 
+                 p: float = 0.8, 
+                 min_f: float = 20, 
+                 max_f: float = 2000, 
+                 amplitude: float = .99, 
+                 **kwargs):
+        super().__init__(p=p, **kwargs)
+        self.min_f = min_f
+        self.max_f = max_f
+        self.amplitude = amplitude
+
+    def __repr__(self):
+        return f"RandomPhase(p={self.p}, min_f={self.min_f}, max_f={self.max_f}, amplitude={self.amplitude}, sr={self.sr})"
+
+    def transform(self, x):
+        return random_phase_mangle(x, self.min_f, self.max_f, self.amplitude, self.sr)
+
 
 @gin.configurable(module="transforms")
 class FrequencyMasking(Transform):
@@ -169,3 +190,23 @@ class FrequencyMasking(Transform):
         x_inv = torch.fft.irfft(spectrogram)[1]
         return x_inv
             
+@gin.configurable(module="transforms")
+class Normalize(Transform):
+    def __call__(self, x):
+        return normalize_signal(x)
+
+@gin.configurable(module="transforms")
+class Derivator(Transform):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._derivator = get_derivator(self.sr)
+    def __call__(self, x):
+        return self._derivator(x)
+
+@gin.configurable(module="transforms")
+class Integrator(Transform):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._integrator = get_integrator(self.sr)
+    def __call__(self, x):
+        return self._integrator(x)

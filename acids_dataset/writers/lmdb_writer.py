@@ -29,6 +29,7 @@ class LMDBWriter(object):
         features: List[AcidsDatasetFeature] | None = None, 
         parser: str | object = RawParser, 
         max_db_size: int | float | None = 100, 
+        dyndb: bool = False, 
         valid_exts: List[str] | None = None,
         dir_parser: Callable = audio_paths_from_dir,
         filters: List[str] = [], 
@@ -56,6 +57,7 @@ class LMDBWriter(object):
         self.features = features or []
         self.metadata = {'filters': filters, 'exclude': exclude}
         self.waveform = waveform
+        self.dyndb = dyndb
         if check:
             print(f'Dataset path : {dataset_path}')
             print(f'Output path : {output_path}')
@@ -168,7 +170,10 @@ class LMDBWriter(object):
         )
 
     def build(self):
-        env = lmdb.open(str(self.output_path.resolve()), map_size=self.max_db_size * 1024 ** 3)
+        env = lmdb.open(str(self.output_path.resolve()), 
+                        map_size = self.max_db_size * 1024 ** 3, 
+                        map_async = not self.dyndb, 
+                        writemap = not self.dyndb)
         n_seconds = 0
         metadata = {}
         feature_hash = self._init_feature_hash()
@@ -307,7 +312,12 @@ class LMDBWriter(object):
 
 class LMDBLoader(object):
 
-    def __init__(self, db_path, output_type: str = "numpy"):
+    def __init__(self, 
+                 db_path, 
+                 output_type: str = "numpy",
+                 lazy_import: bool = False, 
+                 lazy_paths: str | List[str] | None = None
+                 ):
         self._db_path = db_path
         self._database = self.open(db_path, readonly=True) 
         self._metadata = get_metadata_from_path(db_path)
@@ -364,6 +374,7 @@ class LMDBLoader(object):
             feature_hash = self.get_feature_hash(txn)
             iterator = self.iter_fragments(txn)
         return iterator, feature_hash
+
 
 LMDBWriter.loader = "LMDBLoader"
 LMDBLoader.writer = "LMDBWriter"
