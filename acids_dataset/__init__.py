@@ -7,6 +7,10 @@ gin.add_config_file_search_path(Path(__file__).parent.parent / "custom_configs")
 
 from . import utils
 from . import transforms
+
+TRANSFORM_GIN_PATH = Path(__file__).parent / "configs" / "transforms"
+utils.check_transform_configs(transforms, TRANSFORM_GIN_PATH)
+
 from . import parsers
 from . import features
 from . import fragments

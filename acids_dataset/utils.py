@@ -1,4 +1,5 @@
 import importlib
+import inspect, pkgutil
 import logging
 import enum
 from contextlib import ContextDecorator
@@ -207,4 +208,58 @@ def match_loudness(signal, target_signal, sr):
     target_loudness = torchaudio.functional.loudness(target_signal, sr)
     return torchaudio.functional.gain(signal, target_loudness - current_loudness)
     
-    
+
+def walk_modules(package):
+    yield package
+    if hasattr(package, '__path__'):
+        for _, name, ispkg in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
+            submod = importlib.import_module(name)
+            yield from walk_modules(submod)
+
+
+def get_subclasses_from_package(package, filter_class):
+    transform_list = []
+    for mod in walk_modules(package):
+        for name, obj in inspect.getmembers(mod):
+            if isinstance(obj, type):
+                if issubclass(obj, filter_class) and (obj not in transform_list):
+                    transform_list.append(obj)
+    return transform_list
+
+
+gin_config_pattern = """
+### Gin configuration file for transform %s.
+
+%s:
+\t%s
+"""
+
+
+def generate_config_from_transform(transform_class, config_path):
+    gin_name = f"transforms.{transform_class.__name__}"
+    gin_args = []
+    transform_args = dict(inspect.signature(transform_class.__bases__[0].__init__).parameters)
+    transform_args.update(dict(inspect.signature(transform_class.__init__).parameters))
+    for param_name, param in transform_args.items():
+        if param_name in ["self", "name", "args", "kwargs"]: continue
+        if param_name == "sr": 
+            gin_args.append("sr = %SAMPLE_RATE")
+        else:
+            gin_args.append(f"{param_name} = {param._default}")
+    gin_args = "\n\t".join(gin_args)
+    gin_out = gin_config_pattern%(transform_class.__name__, gin_name, gin_args)
+    with open(config_path, "w+") as f: 
+        f.write(gin_out)
+
+
+def check_transform_configs(module, path):
+    transform_class = getattr(module, "Transform")
+    transform_subclasses = get_subclasses_from_package(module, transform_class)
+    os.makedirs(path, exist_ok=True)
+    for transform in transform_subclasses:
+        if transform == transform_class: continue
+        gin_config_name = transform.__name__.lower() + ".gin"
+        gin_config_path = (path / gin_config_name).resolve()
+        if not gin_config_path.exists():
+            generate_config_from_transform(transform, gin_config_path)
+        
