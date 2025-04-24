@@ -19,12 +19,12 @@ _BASICPITCH_MODELS = {
 class BasicPitch(Transform):
     available_models = _BASICPITCH_MODELS
     def __init__(self, 
-                 sr, 
                  device="cpu", 
-                 model: str = 'icassp2022'
+                 model: str = 'icassp2022', 
+                 **kwargs
                 ) -> None:
-        super().__init__(sr, "basic_pitch")
-        #TODO check sampling rate before forwarding to model
+        kwargs['name'] = kwargs.get('name', "basic_pitch_"+model)
+        super().__init__(**kwargs)
         self.pt_model = BasicPitchTorch()
         self.device = device
         self.load_model(model)
@@ -50,9 +50,7 @@ class BasicPitch(Transform):
     def __call__(self, waveform, sr = None, **kwargs):
         if type(waveform) != torch.Tensor:
             waveform = torch.from_numpy(waveform).to(self.device)
-
         sr = sr or self.sr
-
         if self.sr != 22050:
             waveform = torchaudio.functional.resample(waveform=waveform,
                                                       orig_freq=self.sr,

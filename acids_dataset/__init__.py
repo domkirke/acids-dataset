@@ -1,6 +1,7 @@
 from pathlib import Path
 import yaml
 import gin
+gin.enter_interactive_mode()
 gin.add_config_file_search_path(Path(__file__).parent / "configs")
 gin.add_config_file_search_path(Path(__file__).parent.parent / "custom_configs")
 

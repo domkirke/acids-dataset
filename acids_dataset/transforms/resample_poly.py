@@ -14,10 +14,10 @@ def _output_len(len_h, in_len, up, down):
     """The output length that results from a given input"""
     return (((in_len - 1) * up + len_h) - 1) // down + 1
 
-def upfirdn(h, x, up=1, down=1, mode='constant'):
-    x_up = torch.nn.functional.interpolate(x, scale_factor=up, mode=mode)
-    x_filtered = torch.nn.functional.conv1d(x_up, h.reshape(h.shape[0], 1, 1))
-    x_down = torch.nn.functional.interpolate(x_filtered, scale_factor=down, mode=mode)
+def upfirdn(h, x, up=1, down=1):
+    x_up = torch.nn.functional.interpolate(x, scale_factor=up, mode="linear")
+    x_filtered = torch.nn.functional.conv1d(x_up, h.reshape(1, 1, h.shape[0]))
+    x_down = torch.nn.functional.interpolate(x_filtered, scale_factor=1 / down, mode="linear")
     return x_down
 
 
@@ -59,7 +59,7 @@ def resample_poly(x, up, down, axis=0, window=('kaiser', 5.0),
         f_c = 1. / max_rate  # cutoff of FIR filter (rel. to Nyquist)
         half_len = 10 * max_rate  # reasonable cutoff for sinc-like function
         if x.dtype in [torch.float16, torch.float32, torch.float64]:
-            h = torch.from_numpy(firwin(2 * half_len + 1, f_c, window=window)).astype(x.dtype)
+            h = torch.from_numpy(firwin(2 * half_len + 1, f_c, window=window)).to(x.dtype)
         else:
             h = torch.from_numpy(firwin(2 * half_len + 1, f_c, window=window))
     h *= up
@@ -79,7 +79,6 @@ def resample_poly(x, up, down, axis=0, window=('kaiser', 5.0),
     # Remove background depending on the padtype option
     funcs = {'mean': torch.mean, 'median': torch.median,
              'minimum': torch.amin, 'maximum': torch.amax}
-    upfirdn_kwargs = {'mode': 'constant', 'cval': 0}
     if padtype in funcs:
         background_values = funcs[padtype](x, axis=axis, keepdims=True)
     elif padtype in _upfirdn_modes:
@@ -97,7 +96,7 @@ def resample_poly(x, up, down, axis=0, window=('kaiser', 5.0),
         x = x - background_values
 
     # filter then remove excess
-    y = upfirdn(h, x, up, down, axis=axis, **upfirdn_kwargs)
+    y = upfirdn(h, x, up, down)
     keep = [slice(None), ]*x.ndim
     keep[axis] = slice(n_pre_remove, n_pre_remove_end)
     y_keep = y[tuple(keep)]

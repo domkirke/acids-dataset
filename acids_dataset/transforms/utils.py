@@ -1,34 +1,47 @@
 from random import random
+import math
+import numpy as np
+import scipy
 import torch, torchaudio
 
 
 def random_angle(min_f=20, max_f=8000, sr=24000):
-    min_f = torch.log(min_f)
-    max_f = torch.log(max_f)
-    rand = torch.exp(random() * (max_f - min_f) + min_f)
+    min_f = math.log(min_f)
+    max_f = math.log(max_f)
+    rand = math.exp(random() * (max_f - min_f) + min_f)
     rand = 2 * torch.pi * rand / sr
     return rand
 
 def pole_to_z_filter(omega, amplitude=.9):
-    z0 = amplitude * torch.exp(1j * omega)
-    a = [1, -2 * torch.real(z0), abs(z0)**2]
-    b = [abs(z0)**2, -2 * torch.real(z0), 1]
+    z0 = amplitude * torch.exp(1j * torch.tensor(omega))
+    a = torch.Tensor([1, -2 * torch.real(z0), abs(z0)**2])
+    b = torch.Tensor([abs(z0)**2, -2 * torch.real(z0), 1])
     return b, a
 
-def random_phase_mangle(x, min_f, max_f, amp, sr):
+def random_phase_mangle(x, min_f, max_f, amp, sr, clamp=False):
     angle = random_angle(min_f, max_f, sr)
     b, a = pole_to_z_filter(angle, amp)
-    return torchaudio.functional.lfilter(b, a, x)
+    return torchaudio.functional.lfilter(x, a, b, clamp=clamp)
 
-def get_derivator(sr: int):
-    alpha = 1 / (1 + 1 / sr * 2 * torch.pi * 10)
-    derivator = ([.5, -.5], [1])
-    return lambda x: torchaudio.functional.lfilter(*derivator, x) 
+def derivate(x, clamp=False):
+    if torch.is_tensor(x):
+        derivator = (torch.Tensor([.5, -.5]), torch.Tensor([1., 0.]))
+        return torchaudio.functional.lfilter(x, derivator[1], derivator[0], clamp=clamp)
+    else:
+        derivator = ([.5, -.5], [1.])
+        return scipy.signal.lfilter(*derivator, x)
 
-def get_integrator(sr: int):
-    alpha = 1 / (1 + 1 / sr * 2 * torch.pi * 10)
-    integrator = ([alpha**2, -alpha**2], [1, -2 * alpha, alpha**2])
-    return lambda x: torchaudio.functional.lfilter(*integrator, x)
+
+def integrate(x, sr, clamp=False):
+    if torch.is_tensor(x):
+        alpha = 1 / (1 + 1 / sr * 2 * torch.pi * 10)
+        integrator = (torch.Tensor([alpha**2, -alpha**2, 0]), torch.Tensor([1, -2 * alpha, alpha**2]))
+        return torchaudio.functional.lfilter(x, integrator[1], integrator[0], clamp=clamp)
+    else:
+        alpha = 1 / (1 + 1 / sr * 2 * np.pi * 10)
+        integrator = ([alpha**2, -alpha**2], [1, -2 * alpha, alpha**2])
+        return scipy.signal.lfilter(*integrator, x)
+
 
 def normalize_signal(x, max_gain_db: int = 30):
     peak = x.abs().amax()

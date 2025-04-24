@@ -1,3 +1,4 @@
+pytest
 grpcio_tools
 pytest
 absl-py
@@ -10,8 +11,8 @@ numpy
 scipy
 librosa>=0.10.2
 protobuf
-torch
-torchaudio
+torch>=2.5.1
+torchaudio>=2.5.1
 nnaudio
 mir_eval
 resampy

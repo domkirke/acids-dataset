@@ -1,4 +1,6 @@
 import importlib
+import logging
+import enum
 from contextlib import ContextDecorator
 import os
 from pathlib import Path
@@ -145,3 +147,64 @@ def get_accelerated_device(accelerator = None):
         return torch.device('cpu') if not torch.mps.is_available() else torch.device('mps')
     else:
         raise ValueError('accelerator value %s not handled.'%accelerator)
+
+
+class PadMode(enum.Enum):
+    DISCARD = 0
+    ZERO_PAD = 1
+    REPEAT = 2
+    REPLICATE = 3
+    REFLECT = 4
+
+
+def pad(
+        chunk,
+        target_size,
+        pad_mode
+    ):
+    if pad_mode == PadMode.DISCARD:
+        return None
+    elif pad_mode == PadMode.ZERO_PAD:
+        return torch.nn.functional.pad(chunk, (0, target_size - chunk.shape[-1]), mode="constant", value=0.)
+    elif pad_mode == PadMode.REPEAT:
+        n_iter = 0
+        while chunk.shape[-1] < target_size:
+            if n_iter > 1: 
+                logging.warning('applying repeat pad more than once ; may provoke undesired behaviour.')
+            chunk = torch.nn.functional.pad(chunk, (0, min(target_size - chunk.shape[-1], chunk.shape[-1] - 1)), mode="circular")
+            n_iter += 1
+        return chunk
+    elif pad_mode == PadMode.REPLICATE:
+        return torch.nn.functional.pad(chunk, (0, target_size - chunk.shape[-1]), mode="replicate")
+    elif pad_mode == PadMode.REFLECT:
+        n_iter = 0
+        while chunk.shape[-1] < target_size:
+            if n_iter > 1: 
+                logging.warning('applying reflect pad more than once ; may provoke undesired behaviour.')
+            chunk = torch.nn.functional.pad(chunk, (0, min(target_size - chunk.shape[-1], chunk.shape[-1] - 1)), mode="reflect")
+            n_iter += 1
+        return chunk
+    else:
+        raise ValueError('pad mode %s not recognized.'%pad_mode)
+
+def mirror_pad(tensor, target_size, mode="reflect", value=0):
+    if (tensor.shape[-1] < target_size):
+        pad_len = target_size - tensor.shape[-1]
+        pad_bef, pad_aft = math.floor(pad_len / 2), math.ceil(pad_len / 2)
+        return torch.nn.functional.pad(tensor, (pad_bef, pad_aft), mode=mode, value=value)
+    elif(tensor.shape[-1] > target_size): 
+        crop_len = target_size - tensor.shape[-1]
+        crop_bef, crop_aft = math.floor(crop_len / 2), math.ceil(crop_len / 2)
+        return tensor[..., crop_bef:-crop_aft]
+    else:
+        return tensor
+
+
+def match_loudness(signal, target_signal, sr):
+    if signal.ndim == 3: 
+        return torch.stack(0, map(match_loudness, signal))
+    current_loudness = torchaudio.functional.loudness(signal, sr)
+    target_loudness = torchaudio.functional.loudness(target_signal, sr)
+    return torchaudio.functional.gain(signal, target_loudness - current_loudness)
+    
+    

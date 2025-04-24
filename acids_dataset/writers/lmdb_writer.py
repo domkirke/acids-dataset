@@ -11,7 +11,7 @@ from .. import get_fragment_class, get_parser_class_from_path, get_metadata_from
 from ..parsers import RawParser, FileNotReadException
 from ..fragments import AudioFragment
 from ..features import AcidsDatasetFeature
-from typing import List, Callable
+from typing import List, Callable, Literal, Tuple
 import gin
 import yaml
 
@@ -27,17 +27,40 @@ class LMDBWriter(object):
         output_path: str | Path,
         fragment_class: str | AudioFragment = "AcidsFragment", 
         features: List[AcidsDatasetFeature] | None = None, 
+        dir_parser: Callable = audio_paths_from_dir,
         parser: str | object = RawParser, 
         max_db_size: int | float | None = 100, 
         dyndb: bool = False, 
         valid_exts: List[str] | None = None,
-        dir_parser: Callable = audio_paths_from_dir,
         filters: List[str] = [], 
         exclude: List[str] = [],
         check: bool = False, 
         force: bool = False,
         waveform: bool = True,
     ):
+        """Object responsible for writing LMDb databases.
+        The design here is to instantiate to write environments, and access static functions for reading preprocessed data.
+
+        Args:
+            dataset_path (str | Path): input dataset path  
+            output_path (str | Path): preprocessed output path 
+            dir_parser (Callable, optional): _description_. Callback used to locate parsed audio files from input datasets.
+            parser (str | object, optional): _description_. Parser used to extract fragments from a given audio file. 
+            fragment_class (str | AudioFragment, optional): AudioFragment subclass used for each fragment. Defaults to "AcidsFragment".
+            features (List[AcidsDatasetFeature] | None, optional): Optional list of AcidsDatasetFeature objects for attached features. Defaults to None.
+            max_db_size (int | float | None, optional): Maximum dataset size in Gb. Defaults to 100.
+            dyndb (bool, optional): Allowing dynamic re-growing of database. Defaults to False.
+            valid_exts (List[str] | None, optional): Valid audio extensions, None for every readable extension. Defaults to None.
+            filters (List[str], optional): List of glob-like patterns to filter audio paths. Defaults to [].
+            exclude (List[str], optional): List of glob-like patterns to exclude audio paths. Defaults to [].
+            check (bool, optional): Waits for user prompt before proceeding to parsing. Defaults to False.
+            force (bool, optional): Do not raise exception if folder already exists. Defaults to False.
+            waveform (bool, optional): Parse waveform, or only features. Defaults to True.
+
+        Raises:
+            ValueError: target path already exist. 
+        """
+
         # parse dataset
         self.dataset_path = Path(dataset_path)
         self._parse_dataset(dir_parser, valid_exts, filters, exclude)
@@ -78,7 +101,18 @@ class LMDBWriter(object):
             if not out: 
                 exit()
 
+    def _init_feature_hash(self):
+        """inits internal feature hash"""
+        feature_hash = FeatureHash(original_path={})
+        return feature_hash
+    
+    @staticmethod
+    def get_feature_name(f):
+        """returns feature name for a given AcidsFeature object."""
+        return getattr(f, "feature_name", type(f).__name__.lower())
+
     def _parse_dataset(self, dir_parser, valid_exts = None, filters=None, exclude=None, dataset_path=None):
+        """Extract target audio files from the directories"""
         dataset_path = dataset_path or self.dataset_path
         self._files = dir_parser(dataset_path, valid_exts = valid_exts, flt=filters, exclude=exclude)
         if len(self._files) == 0:
@@ -88,20 +122,14 @@ class LMDBWriter(object):
         self.exclude = exclude
 
     def _update_metadata(self, metadata, metadata_dict):
+        """updates internal metadata"""
         for k, v in metadata.items():
             if k not in metadata_dict: metadata_dict[k] = v
         return metadata_dict
 
     @staticmethod
-    def get_feature_name(f):
-        return getattr(f, "feature_name", type(f).__name__.lower())
-
-    def _init_feature_hash(self):
-        feature_hash = FeatureHash(original_path={})
-        return feature_hash
-        
-    @staticmethod
     def _extract_features(fragment, features, current_key, feature_hash, overwrite=False):
+        """extract features from a given fragment"""
         for feature in features:
             feature_name = feature.feature_name
             if fragment.has_buffer(feature_name) or fragment.has_metadata(feature_name):
@@ -114,11 +142,13 @@ class LMDBWriter(object):
 
     @staticmethod
     def _close_features(features):
+        """terminate features objects before quitting"""
         for feature in features:
             feature.close()
         
     @staticmethod
     def _add_feature_hash_to_lmdb(txn, feature_hash):
+        """append feature hash to lmdb"""
         txn.put(
             "feature_hash".encode('utf-8'),
             dill.dumps(dict(feature_hash))
@@ -126,6 +156,7 @@ class LMDBWriter(object):
 
     @staticmethod
     def _add_features_to_lmdb(txn, features):
+        """binarize and append features to database"""
         binarized_features = collections.OrderedDict()
         for f in features:
             binarized_features[f.feature_name] = f
@@ -164,12 +195,14 @@ class LMDBWriter(object):
 
     @classmethod
     def _add_keygen_to_lmdb(cls, txn, keygen):
+        """append hash key generator to database. Useful when updating a database."""
         txn.put(
             "keygen".encode('utf-8'), 
             dill.dumps(keygen)
         )
 
     def build(self):
+        """Builds the pre-processed database."""
         env = lmdb.open(str(self.output_path.resolve()), 
                         map_size = self.max_db_size * 1024 ** 3, 
                         map_async = not self.dyndb, 
@@ -313,11 +346,19 @@ class LMDBWriter(object):
 class LMDBLoader(object):
 
     def __init__(self, 
-                 db_path, 
-                 output_type: str = "numpy",
+                 db_path: str | Path, 
+                 output_type: str = Literal["numpy", "torch"],
                  lazy_import: bool = False, 
                  lazy_paths: str | List[str] | None = None
                  ):
+        """LMDBLoader is the object called when loading a database.
+
+        Args:
+            db_path (str | Path): pre-processed database path
+            output_type (str, optional): output type. Defaults to "numpy".
+            lazy_import (bool, optional): _description_. Defaults to False.
+            lazy_paths (str | List[str] | None, optional): _description_. Defaults to None.
+        """
         self._db_path = db_path
         self._database = self.open(db_path, readonly=True) 
         self._metadata = get_metadata_from_path(db_path)
@@ -332,14 +373,22 @@ class LMDBLoader(object):
     def __len__(self):
         return self._length
 
-    def __getitem__(self, idx):
-        idx_key = self._keygen.from_int(idx)
+    def __getitem__(self, idx: int | bytes):
+        if isinstance(idx, int):
+            idx_key = self._keygen.from_int(idx)
+        else:
+            assert isinstance(idx, bytes), "__getitem__ must be either int or bytes"
+            idx_key = idx
         with self._database.begin() as txn:
             fg = self._fragment_class(txn.get(idx_key.encode('utf-8')), output_type=self._output_type)
         return fg
 
     def open(self, path, readonly=True, lock=False):
         return lmdb.open(str(path), lock=lock, readonly=readonly)
+
+    @property
+    def feature_hash(self):
+        return self.get_feature_hash()
 
     def get_feature_hash(self, txn=None):
         transaction = txn or self._database.begin()
@@ -360,7 +409,15 @@ class LMDBLoader(object):
                 yield key
         if txn is not None: transaction.__exit__()
             
-    def iter_fragments(self, txn=None):
+    def iter_fragments(self, txn: lmdb.Environment | None = None) -> Tuple[str, AudioFragment]:
+        """iter_fragments can be used to iterate contained fragments.
+
+        Args:
+            txn (lmdb.Environment | None, optional): optional LMDB environement. Defaults to None.
+
+        Yields:
+            : key, fragment (Tuple[str, AcidsFragment]): key and fragments
+        """
         transaction = txn or self._database.begin()
         with self._database.begin(readonly=True) as txn:
             for key in txn.cursor().iternext(values=False):
@@ -369,6 +426,14 @@ class LMDBLoader(object):
         if txn is not None: transaction.__exit__()
 
     def parse_from_path(self, path):
+        """parse_from_path direcly returns the iterator, and the feature hash, from a given database.
+
+        Args:
+            path (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         env = self.open(path)
         with env.begin() as txn:
             feature_hash = self.get_feature_hash(txn)

@@ -64,11 +64,14 @@ def test_raw_parser(dataset, test_name, parser, import_backend, pad_mode, chunk_
                 file_exceptions.append(e)
 
     with open(Path(OUT_TEST_DIR) / f"{test_name}.txt", "w+") as f:
-        f.write(f"--failed files: \n{'\n'.join(map(str, file_exceptions))}")
+        # f.write(f"--failed files: \n{'\n'.join(map(str, file_exceptions))}")
+        f.write("--failed files: \n")
+        f.write('\n'.join(map(str, file_exceptions)))
         f.write("\n--filewise information :\n")
         for p in valid_files:
             p_name = Path(p).relative_to(dataset_path)
-            f.write(f"{p_name}\t{file_stats.get(p, "MISSING")}\n")
+            stat = file_stats.get(p, "MISSING")
+            f.write(f"{p_name}\t{stat}\n")
             
 @pytest.mark.parametrize('config', ['rave.gin'])
 @pytest.mark.parametrize("dataset", get_available_datasets())
@@ -125,8 +128,8 @@ def test_slakh_dataset(config, test_name, test_k=2):
 @pytest.mark.parametrize("dataset", get_available_datasets())
 @pytest.mark.parametrize("output_pattern,transforms", [
     ("waveform", []),
-    ("waveform,", [transforms.RandomGain()]),
-    ("{waveform,}", {'waveform': transforms.RandomGain()})
+    ("waveform,", [transforms.Gain()]),
+    ("{waveform,}", {'waveform': transforms.Gain()})
 ])
 def test_audio_dataset(dataset, transforms, output_pattern, test_name):
     preprocessed_path = OUT_TEST_DIR / f"{dataset}_preprocessed"

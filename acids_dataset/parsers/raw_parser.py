@@ -9,15 +9,8 @@ import gin
 from ..features import AcidsDatasetFeature
 
 from .utils import FileNotReadException
-from ..utils import loudness
+from ..utils import loudness, PadMode, pad
 
-
-class PadMode(enum.Enum):
-    DISCARD = 0
-    ZERO_PAD = 1
-    REPEAT = 2
-    REPLICATE = 3
-    REFLECT = 4
 
 class TorchaudioBackend(object):
     @classmethod
@@ -94,31 +87,7 @@ class TorchaudioBackend(object):
         target_size,
         pad_mode
     ):
-        if pad_mode == PadMode.DISCARD:
-            return None
-        elif pad_mode == PadMode.ZERO_PAD:
-            return torch.nn.functional.pad(chunk, (0, target_size - chunk.shape[-1]), mode="constant", value=0.)
-        elif pad_mode == PadMode.REPEAT:
-            n_iter = 0
-            while chunk.shape[-1] < target_size:
-                if n_iter > 1: 
-                    logging.warning('applying repeat pad more than once ; may provoke undesired behaviour.')
-                chunk = torch.nn.functional.pad(chunk, (0, min(target_size - chunk.shape[-1], chunk.shape[-1] - 1)), mode="circular")
-                n_iter += 1
-            return chunk
-        elif pad_mode == PadMode.REPLICATE:
-            return torch.nn.functional.pad(chunk, (0, target_size - chunk.shape[-1]), mode="replicate")
-        elif pad_mode == PadMode.REFLECT:
-            n_iter = 0
-            while chunk.shape[-1] < target_size:
-                if n_iter > 1: 
-                    logging.warning('applying reflect pad more than once ; may provoke undesired behaviour.')
-                chunk = torch.nn.functional.pad(chunk, (0, min(target_size - chunk.shape[-1], chunk.shape[-1] - 1)), mode="reflect")
-                n_iter += 1
-            return chunk
-        else:
-            raise ValueError('pad mode %s not recognized.'%pad_mode)
-        
+        return pad(chunk, target_size, pad_mode)        
 
 class FFMPEGBackend(object):
     @classmethod

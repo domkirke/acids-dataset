@@ -16,7 +16,7 @@ pip install acids-dataset
 ```bash
 acids-dataset preprocess --path /path/to/your/dataset --out /target/path/for/preprocessed --config after
 ```
-where here `after` is like a preset to automatically embed the metadata required by AFTER (see table below for a comprehensive list of available ). You can also provide a list of filters / excluding filters to select the parsed files : 
+where here `after` is like a preset to automatically embed the metadata required by AFTER (see table below for a comprehensive list of available). You can also provide a list of filters / excluding filters to select the parsed files : 
 ```bash
 acids-dataset preprocess --path /path/to/your/dataset --out /target/path/for/preprocessed --filter "**/*" --exclude "*.opus"
 ```
