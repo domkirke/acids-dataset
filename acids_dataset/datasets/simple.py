@@ -11,7 +11,6 @@ TransformType = Optional[transforms.Transform | List[transforms.Transform] | Dic
 def _parse_transforms_with_pattern(transform, pattern):
     return transform
 
-
 class AudioDataset(torch.utils.data.Dataset):
 
     def __init__(self,

@@ -1,4 +1,5 @@
 from random import random
+import gin.torch
 import math
 import numpy as np
 import scipy
@@ -51,3 +52,8 @@ def normalize_signal(x, max_gain_db: int = 30):
     log_gain = min(max_gain_db, -log_peak)
     gain = 10**(log_gain / 20)
     return x * gain
+
+
+@gin.configurable(module="transforms")
+def parse_transform(transform):
+    return transform 

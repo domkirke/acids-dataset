@@ -1,17 +1,21 @@
 # acids-dataset
 
-`acids-dataset` is a preprocessing package for audio data and metadata, mostly used by [RAVE](http://github.com/acids-ircam/RAVE) and [AFTER](http://github.com/acids-ircam/AFTER) but opened for custom use. Built open [lmdb](https://openldap.org/), it leverages the pre-processing step of data parsing required by audio generative models to extract metadata and audio features that can be accessed and used during training. 
+`acids-dataset` is a preprocessing package for audio data and metadata, mostly used by [RAVE](http://github.com/acids-ircam/RAVE) and [AFTER](http://github.com/acids-ircam/AFTER) but opened for custom use. Built open [lmdb](https://openldap.org/), it leverages the pre-processing step of data parsing required by audio generative models to extract metadata and audio features that can be accessed and used during training. It brings : 
+- Conveninent pre-processing pipelines allowing to easily select / discard files, extract metadata with features of from filenames, and metadata hashing
+- Data augmentations tailored for audio with probablities
+- Powerful data loaders for supervised / self-supervised learning with additional features (balancing, positive / negative examples, curriculum learning)
 
-## Installation
+# Installation
 To install acids-dataset, just install it through pip.
 
 ```bash
 pip install acids-dataset
 ```
 
-## Usage with command line
+# Usage
 
-### Preprocessing
+## Preprocessing
+
 `acids-dataset` is available as a command-line tool to easily pre-process a dataset path. For example, simply parse a dataset for [after](http://github.com/acids-ircam/AFTER) with 
 ```bash
 acids-dataset preprocess --path /path/to/your/dataset --out /target/path/for/preprocessed --config after
@@ -165,8 +169,55 @@ You can also add the `--files` to list all the parsed audio files, or the `--che
 
 <a href="#customize"></a>
 
-## Customize
-### Customize features.
+## Data augmentations
+
+`acids_dataset` brings adaptive and convenient data augmentations pipelines for audio compatible with gin and datasets. Data augmentations can work with both `np.ndarray` and `torch.Tensor`, and may be composed through the `transforms.Compose` that override usual list methods (`append` , `extend`, etc...).
+
+| Name             | Config name            | Description                                  |
+| ---------------- | ---------------------- | -------------------------------------------- |
+| BasicPitch       | `basicpitch.gin`       | Pitch extraction based on BasicPitch         |
+| Compess          | `compress.gin`         | Compression with random parameters.          |
+| Crop             | ` crop.gin`            | Random cropping to fixed chunk size.         |
+| Dequantize       | `dequantize.gin`       | Dequantize incoming signal.                  |
+| Derivator        | `derivator.gin`        | Derivates incoming signal.                   |
+| FrequencyMasking | `frequencymasking.gin` | Randomly masks frequency bands of input.     |
+| Gain             | `gain.gin`             | Applies random gain to the input.            |
+| Integrator       | `integrator.gin`       | Integrates incoming signal.                  |
+| Mute             | `mute.gin`             | Mutes incoming incoming signal.              |
+| Normalize        | `normalize.gin`        | Normalizes incoming signal.                  |
+| PhaseMangle      | `phasemangle.gin`      | shuffle phase with an all-pass filter        |
+| PreEmphasis      | `preemphasis.gin`      | adds pre-emphasis to a signal.               |
+| RandomDelay      | `randomdelay.gin`      | random short comb-filtered delays            |
+| RandomDistort    | `randomdistort.gin`    | random Eqing and distortion of signal        |
+| RandomEQ         | `randomeq.gin`         | random EQing of the signal                   |
+| Resample         | `resample.gin`         | resampling of the signal.                    |
+| Strech           | `stretch.gin`          | Pitch alteration using polyphase resampling` |
+
+All augmentations derived from a base class `Transform`, that is initialised with the following arguments : 
+
+- `sr (int)` : a sample rate (mandatory for most transforms)
+- `p (float)` : augmentation probability between 0 and 1
+- `batchwise (bool)`: if available, are probabilities applied for each batch, or for a whole batch (default : True)
+- `name (str)`: an optional name (see below)
+
+Stochastic options of the base class are very powerful to develop versatile augmentation pipelines. For example : 
+
+```
+from acids_dataset import transforms as atf
+
+pipeline = atf.Compose([
+  atf.Stretch(131072, p=0.2), # Stretch is always non-batchwise, as it crops to a target size
+  atf.Gain(p=0.8), 
+  atf.Compress(p=0.5), 
+  atf.Mute(p=0.1), 
+])
+```
+performs random pitch shifting with probability 20%, random gain with probability 80%, random compression with probability 50%, and mutes random batches with probability 0.10% (very useful to force models to learn silence.) 
+
+
+## Data loaders
+
+# Extending `acids-dataset`
 
 ### Implementing features
 You can add your own features by subclassing the `AcidsDatasetFeature` object. 
@@ -222,4 +273,25 @@ The `AcidsDatasetFeature` is the base object for all audio features. One instan
 `AcidsDatasetFeature` also automatically fills up a hash during writing, allowing to get all the audio indexes belonging to a given hash. However, this is not automatic: this hash process is performed if :  
 - the `has_hash` attribute is `True` (the feature has then to be hashable ; arrays, tensors, or lists, are typically non hashable.)
 - a `hash_from_feature(self, ft)` callback is defined in the class, or provided at initialization (allowing to be gin configurable). If a callback is provided at initialization, it erases in any case the one defined (or not) in the class.
+
+
+### Implementing transforms
+
+A new transform can be done as follows : 
+
+```python 
+@gin.configurable(module="transforms")
+class NewTransform(Transform):
+    takes_as_input = Transform.input_types.torch
+    allow_random = True
+
+    def __init__(self, custom_param: int | None = None, **kwargs):
+      super().__init__()
+
+    def apply(self, x):
+      # operations to x....
+```
+
+and... that's it! `apply` provides the main operating function for data processing, and is directly called by `Transform` if `p=None` or randomly called if `p>0`. 
+The `allow_random` attributes if transform can be randomized. You can also overload the method `apply_random(self, x)` to override how the transform behaves when `p>0`.
 

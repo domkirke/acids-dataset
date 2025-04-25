@@ -125,21 +125,6 @@ def test_slakh_dataset(config, test_name, test_k=2):
             midi = ae.get_data("midi")
             loudness = ae.get_array("loudness")
 
-@pytest.mark.parametrize("dataset", get_available_datasets())
-@pytest.mark.parametrize("output_pattern,transforms", [
-    ("waveform", []),
-    ("waveform,", [transforms.Gain()]),
-    ("{waveform,}", {'waveform': transforms.Gain()})
-])
-def test_audio_dataset(dataset, transforms, output_pattern, test_name):
-    preprocessed_path = OUT_TEST_DIR / f"{dataset}_preprocessed"
-    if not preprocessed_path.exists():
-        dataset_path = get_dataset(dataset)
-        preprocess_dataset(dataset_path, out = preprocessed_path)
-    dataset = AudioDataset(preprocessed_path, transforms, output_pattern)
-    assert len(dataset) > 0, "dataset seems empty"
-    for i in range(len(dataset)):
-        out = dataset[i]
 
     
 

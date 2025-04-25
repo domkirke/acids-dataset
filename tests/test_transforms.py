@@ -52,7 +52,7 @@ test_signals = {
 }
 
 
-@pytest.mark.parametrize("transform", inspect_module_objects(transforms))
+@pytest.mark.parametrize("transform", get_subclasses_from_package(transforms, transforms.Transform))
 @pytest.mark.parametrize("sr", [22050, 44100])
 def test_transform_with_audio(transform, sr, t=2.0, n_samples=8):
     out_dir = Path(__file__).parent / "outs" / "transforms" / f"{transform.__name__}" / str(sr)

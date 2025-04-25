@@ -228,10 +228,13 @@ def get_subclasses_from_package(package, filter_class):
 
 
 gin_config_pattern = """
-### Gin configuration file for transform %s.
+// Gin configuration file for transform %s.
 
 %s:
 \t%s
+
+transforms.parse_transform:
+    transform = @transforms.%s()
 """
 
 
@@ -247,7 +250,7 @@ def generate_config_from_transform(transform_class, config_path):
         else:
             gin_args.append(f"{param_name} = {param._default}")
     gin_args = "\n\t".join(gin_args)
-    gin_out = gin_config_pattern%(transform_class.__name__, gin_name, gin_args)
+    gin_out = gin_config_pattern%(transform_class.__name__, gin_name, gin_args, transform_class.__name__)
     with open(config_path, "w+") as f: 
         f.write(gin_out)
 
