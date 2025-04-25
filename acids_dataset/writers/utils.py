@@ -93,6 +93,9 @@ class KeyIterator():
         assert x < self.current_id, f"key iterator has generated {self.current_id} so far."
         key = f"{x:0{self._n}d}"
         return key
+    @staticmethod
+    def from_str(x: str): 
+        return x.encode('utf-8')
 
     
     

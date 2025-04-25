@@ -42,8 +42,11 @@ class AudioFragment(object):
         self._parse_properties()
 
     def init_from_byte_string(self, bs, output_type=DEFAULT_OUTPUT_TYPE):
-        self.ae = self.ExampleClass.FromString(bs)    
-        self.output_type = output_type
+        try:
+            self.ae = self.ExampleClass.FromString(bs)    
+            self.output_type = output_type
+        except Exception as e: 
+            raise e
 
     def _record_property_from_metadata(self, attribute):
         def _property_getter_fn(self, key=attribute):

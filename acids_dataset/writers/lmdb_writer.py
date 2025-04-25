@@ -20,7 +20,7 @@ non_buffer_keys = ['feature_hash', 'features', 'keygen']
 
 @gin.configurable(module="writer")
 class LMDBWriter(object):
-    
+    KeyGenerator = KeyIterator 
     def __init__(
         self, 
         dataset_path: str | Path, 
@@ -140,28 +140,28 @@ class LMDBWriter(object):
                             current_key=current_key, 
                             feature_hash=feature_hash)
 
-    @staticmethod
-    def _close_features(features):
+    @classmethod
+    def _close_features(cls, features):
         """terminate features objects before quitting"""
         for feature in features:
             feature.close()
         
-    @staticmethod
-    def _add_feature_hash_to_lmdb(txn, feature_hash):
+    @classmethod
+    def _add_feature_hash_to_lmdb(cls, txn, feature_hash):
         """append feature hash to lmdb"""
         txn.put(
-            "feature_hash".encode('utf-8'),
+            cls.KeyGenerator.from_str("feature_hash"),
             dill.dumps(dict(feature_hash))
         )
 
-    @staticmethod
-    def _add_features_to_lmdb(txn, features):
+    @classmethod
+    def _add_features_to_lmdb(cls, txn, features):
         """binarize and append features to database"""
         binarized_features = collections.OrderedDict()
         for f in features:
             binarized_features[f.feature_name] = f
         txn.put(
-            "features".encode('utf-8'), 
+            cls.KeyGenerator.from_str("features"),
             dill.dumps(binarized_features)
         )
 
@@ -197,7 +197,7 @@ class LMDBWriter(object):
     def _add_keygen_to_lmdb(cls, txn, keygen):
         """append hash key generator to database. Useful when updating a database."""
         txn.put(
-            "keygen".encode('utf-8'), 
+            cls.KeyGenerator.from_str("keygen"),
             dill.dumps(keygen)
         )
 
@@ -285,7 +285,7 @@ class LMDBWriter(object):
         # parse features
         with env.begin(write=True) as txn:
             # parse features
-            features = list(dill.loads(txn.get('features'.encode('utf-8'))).values()) + features
+            features = list(dill.loads(txn.get(cls.KeyGenerator.from_str('features'))).values()) + features
             fragment_class = get_fragment_class_from_path(path)
             feature_hash = cls.get_feature_hash(txn)
 
@@ -365,9 +365,11 @@ class LMDBLoader(object):
         self._fragment_class = get_fragment_class(self._metadata.get('fragment_class'))
         self._output_type = output_type
         self._length = self._metadata.get('n_chunks')
+        keygen_class = getattr((locals().get(self._metadata['writer_class']) or LMDBWriter), "KeyGenerator", KeyIterator)
+        filter_keys = list(map(lambda x: keygen_class.from_str(x), non_buffer_keys))
         with self._database.begin() as txn:
-            if self._length is None:
-                self._length = len(list(txn.cursor().iternext(values=False)))
+            self._keys = list(filter(lambda x: x not in filter_keys, txn.cursor().iternext(values=False)))
+            self._length = len(self._keys)
             self._keygen = dill.loads(txn.get('keygen'.encode('utf-8')))
 
     def __len__(self):
@@ -376,12 +378,19 @@ class LMDBLoader(object):
     def __getitem__(self, idx: int | bytes):
         if isinstance(idx, int):
             idx_key = self._keygen.from_int(idx)
+            idx_key = idx_key.encode('utf-8')
         else:
             assert isinstance(idx, bytes), "__getitem__ must be either int or bytes"
             idx_key = idx
         with self._database.begin() as txn:
-            fg = self._fragment_class(txn.get(idx_key.encode('utf-8')), output_type=self._output_type)
+            fg = self._fragment_class(txn.get(idx_key), output_type=self._output_type)
         return fg
+
+    def __contains__(self, idx: bytes):
+        return idx in self._keys
+
+    def get_key_from_idx(self, idx: int):
+        return self._keys[idx]
 
     def open(self, path, readonly=True, lock=False):
         return lmdb.open(str(path), lock=lock, readonly=readonly)
@@ -389,6 +398,10 @@ class LMDBLoader(object):
     @property
     def feature_hash(self):
         return self.get_feature_hash()
+
+    @property
+    def keygen(self): 
+        return self._keygen
 
     def get_feature_hash(self, txn=None):
         transaction = txn or self._database.begin()

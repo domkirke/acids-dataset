@@ -1,23 +1,50 @@
 import pytest
-import acids_dataset
-from acids_dataset import transforms as atf
-from . import OUT_TEST_DIR
+import acids_dataset as ad
+from acids_dataset import transforms as adt
+from . import OUT_TEST_DIR, test_name
 from .datasets import get_available_datasets, get_dataset
-
 
 
 @pytest.mark.parametrize("dataset", get_available_datasets())
 @pytest.mark.parametrize("output_pattern,transforms", [
     ("waveform", []),
-    ("waveform,", [atf.Gain()]),
-    ("{waveform,}", {'waveform': atf.Gain()})
+    ("waveform,", [adt.Gain()]),
+    ("{waveform,}", {'waveform': adt.Gain()})
 ])
 def test_audio_dataset(dataset, transforms, output_pattern, test_name):
     preprocessed_path = OUT_TEST_DIR / f"{dataset}_preprocessed"
     if not preprocessed_path.exists():
         dataset_path = get_dataset(dataset)
-        atf.preprocess_dataset(dataset_path, out = preprocessed_path)
-    dataset = atf.AudioDataset(preprocessed_path, transforms, output_pattern)
+        ad.preprocess_dataset(dataset_path, out = preprocessed_path)
+    dataset = ad.datasets.AudioDataset(preprocessed_path, transforms, output_pattern)
     assert len(dataset) > 0, "dataset seems empty"
     for i in range(len(dataset)):
         out = dataset[i]
+
+
+@pytest.mark.parametrize("dataset", get_available_datasets())
+def test_dataset_partitions(dataset):
+    preprocessed_path = OUT_TEST_DIR / f"{dataset}_preprocessed"
+    if not preprocessed_path.exists():
+        dataset_path = get_dataset(dataset)
+        ad.preprocess_dataset(dataset_path, out = preprocessed_path)
+    dataset = ad.datasets.AudioDataset(preprocessed_path) 
+
+    # test random split    
+    target_partition = {'train':0.8, 'test':0.2}
+    partitions = dataset.split(target_partition)
+    for k, v in partitions.items():
+        for i in range(len(v)):
+            out = v[i]
+
+    partitions = dataset.split(target_partition, features=['original_path'])
+    for k, v in partitions.items():
+        for i in range(len(v)):
+           out = v[i]
+
+    partitions = dataset.split(target_partition, features=['original_path'], balance_cardinality=True)
+    for k, v in partitions.items():
+        for i in range(len(v)):
+            out = v[i]
+        
+

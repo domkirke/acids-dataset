@@ -1,5 +1,6 @@
 import torch
 import random, math, itertools
+from collections import deque
 import copy
 from typing import Optional, List , Dict, Iterable
 from .. import writers
@@ -33,17 +34,26 @@ class AudioDataset(torch.utils.data.Dataset):
         self._transforms = _parse_transforms_with_pattern(transforms, self._output_pattern)
         self._channels = channels
         self._subindices = subindices
-        self.parent = parent
+        self._parent = None
+        self._partitions = {}
+        self._index_mapper = lambda x: x
+        if parent:
+            self.parent = parent
         super(AudioDataset, self).__init__(**kwargs)
 
     def __getitem__(self, index):
+        if self._subindices is not None:
+            index = self._subindices[index]
         fg = self._loader[index]
         outs = _outs_from_pattern(fg, self.output_pattern)
         outs = _transform_outputs(outs, self.transforms)
         return outs
     
     def __len__(self):
-        return len(self._loader)
+        if self._subindices is None:
+            return len(self._loader)
+        else:
+            return len(self._subindices)
 
     @property 
     def parent(self):
@@ -51,7 +61,7 @@ class AudioDataset(torch.utils.data.Dataset):
 
     @parent.setter
     def parent(self, obj):
-        assert issubclass(type(obj), type(self)), "parent of a dataset must be a subclass of %s"%(type(obj))
+        assert issubclass(type(obj), type(self)), "parent of a dataset must be a subclass of %s"%(type(self))
 
     @property 
     def metadata(self):
@@ -83,29 +93,102 @@ class AudioDataset(torch.utils.data.Dataset):
     def keys(self) -> List[str]:
         return list(self._loader.iter_fragment_keys())
 
-    def split(self, feature=None, partitions=None):
-        """automatically look for set (or provided) feature, otherwise split randomly"""
-        assert feature is not None or partitions is not None, "either feature or partitions must be provided"
-        if feature is None: 
-            feature = "set" if "set" in map(lambda x: x.feature_name, self._loader.features) else None
-            if feature is not None: 
-                return self.split_by_feature(feature)
-        if partitions is not None:
-            return self.split_random(**partitions)
+    def get_subdataset(self, subindices, check=False):
+        if check: 
+            for s in subindices: 
+                if s not in self._loader: 
+                    raise IndexError('key %s not found in dataset'%s)
+        subdataset = copy.copy(self)
+        subdataset._subindices = subindices
+        subdataset.parent = self
+        return subdataset
 
-    def split_random(self, **kwargs):
-        assert not self.is_partition, "dataset is already a partition of an existing dataset."
-        """randomly split the feature"""
+    def _split_without_feature(self, **kwargs):
         ratios = {k: float(v) for k, v in kwargs.items()}
         n_items = len(self._loader)
         idx_perm = random.sample(range(n_items), k=n_items)
-        idx_slices = list(itertools.accumulate([r * n_items for r in ratios]))
-        raise NotImplementedError
+        current_idx = 0
+        subindices = {}
+        for i, k in enumerate(ratios.keys()):
+            part_len = int(ratios[k] * n_items)
+            subindices[k] = list(map(self._loader.get_key_from_idx,idx_perm[current_idx:current_idx+part_len]))
+            current_idx += part_len
+        return {k: self.get_subdataset(subindices[k]) for k in ratios.keys()}           
 
-    def split_by_feature(self, feature_name: str):
-        assert not self.is_partition, "dataset is already a partition of an existing dataset."
-        raise NotImplementedError
+    def _split_with_features(self, partitions, features, tolerance=0.1, balance_cardinality = False):
+        # make partition hash
+        for f in features:
+            assert f in self._loader.feature_hash, f"feature {f} not present in dataset"
+        if len(features) == 1:
+            partition_hash = {(k,): v for k, v in self._loader.feature_hash[features[0]].items()}
+        else:
+            partition_hash = {}
+            for current_hash in itertools.product(*[self._loader.feature_hash[f] for f in features]):
+                subset = None
+                for i, f in enumerate(features):
+                    if subset is None: 
+                        subset = set(self._loader.feature_hash[f][current_hash[i]])
+                    else:
+                        subset.intersection_update(self._loader.feature_hash[f])
+                partition_hash[current_hash] = subset
 
+        if balance_cardinality: 
+            return self._split_with_features_balanced(partitions, partition_hash, features, tolerance=tolerance)
+        else:
+            return self._split_with_features_unbalanced(partitions, partition_hash, features, tolerance=tolerance)
+
+    def _split_with_features_unbalanced(self, partitions, partition_hash, features, tolerance=0.1):
+        labels = list(partition_hash.keys())
+        n_items = len(labels)
+        subindices = {p: [] for p in partitions.keys()}
+        random.shuffle(labels)
+        current_idx = 0
+        for i, k in enumerate(partitions.keys()):
+            part_len = int(partitions[k] * n_items)
+            current_labels = labels[current_idx:current_idx+part_len]
+            for c in current_labels:
+                subindices[k].extend(map(self._loader.keygen.from_str, partition_hash[c]))
+            current_idx += part_len
+
+        partitions = {p: self.get_subdataset(subindices[p]) for p in partitions.keys()}
+        return partitions
+                
+
+    def _split_with_features_balanced(self, partitions, partition_hash, features, tolerance=0.1):
         
+        sorted_keys = list(sorted(partition_hash.keys(), key=lambda x: len(partition_hash[x]),)) 
+
+        # make partitions
+        pmap = {p: {'current_set': list(), 'target_len': int(partitions[p] * len(self)), 'tolerance': tolerance * len(self) * partitions[p], 'full': False} for p in partitions.keys()}
+        unset = []
+        part_names = deque(pmap.keys());
+        f = open('oops.txt', 'w+')
+        for label in sorted_keys: 
+            current_set = partition_hash[label]
+            current_set_distributed = False
+            if set(pmap[p]['full'] for p in part_names) != {True}:
+                for p in part_names:
+                    if pmap[p]['full']: continue
+                    if ((len(pmap[p]['current_set']) + len(current_set)) <  pmap[p]['target_len'] + pmap[p]['tolerance']):
+                        f.write(f"{p}, {abs((len(pmap[p]['current_set']) + len(current_set)) -  pmap[p]['target_len'])}, {pmap[p]['tolerance']}\n")
+                        pmap[p]['current_set'].extend(map(self._loader._keygen.from_str, current_set))
+                        current_set_distributed = True
+                        break
+                    else: 
+                        pmap['full'] = True
+            if not current_set_distributed:
+                unset.append(current_set)
+            part_names.rotate(1)
+        
+        partitions = {p: self.get_subdataset(pmap[p]['current_set']) for p in part_names}
+        return partitions
+
+    def split(self, partitions, features=None, balance_cardinality: bool = False, tolerance: float = 0.1):
+        assert not self.is_partition, "dataset is already a partition of an existing dataset."
+        if features is None:
+            return self._split_without_feature(**partitions)
+        else:
+            return self._split_with_features(partitions, features, tolerance = tolerance, balance_cardinality=balance_cardinality)
+
 
 
