@@ -1,4 +1,5 @@
 import torch
+import os
 import random, math, itertools
 from collections import deque
 import copy
@@ -13,7 +14,7 @@ def _parse_transforms_with_pattern(transform, pattern):
     return transform
 
 class AudioDataset(torch.utils.data.Dataset):
-
+    _default_partition_name = "partitions"
     def __init__(self,
                  db_path: str,
                  transforms: TransformType = None, 
@@ -152,12 +153,9 @@ class AudioDataset(torch.utils.data.Dataset):
 
         partitions = {p: self.get_subdataset(subindices[p]) for p in partitions.keys()}
         return partitions
-                
 
     def _split_with_features_balanced(self, partitions, partition_hash, features, tolerance=0.1):
-        
         sorted_keys = list(sorted(partition_hash.keys(), key=lambda x: len(partition_hash[x]),)) 
-
         # make partitions
         pmap = {p: {'current_set': list(), 'target_len': int(partitions[p] * len(self)), 'tolerance': tolerance * len(self) * partitions[p], 'full': False} for p in partitions.keys()}
         unset = []
@@ -179,16 +177,50 @@ class AudioDataset(torch.utils.data.Dataset):
             if not current_set_distributed:
                 unset.append(current_set)
             part_names.rotate(1)
-        
         partitions = {p: self.get_subdataset(pmap[p]['current_set']) for p in part_names}
         return partitions
 
-    def split(self, partitions, features=None, balance_cardinality: bool = False, tolerance: float = 0.1):
+    def _write_partition(self, partitions, write: str | bool):
+        partition_dir = os.path.join(self._db_path, "partitions")
+        if write is True:
+            write = type(self)._default_partition_name
+        if os.path.splitext(write)[1] != ".txt": write += ".txt"
+        os.makedirs(partition_dir, exist_ok=True)
+        partition_file = os.path.join(partition_dir, write)
+        with open(partition_file, "wb+") as f:
+            for p, v in partitions.items(): 
+                f.write(f"{p};".encode('utf-8'))
+                f.write(b','.join(v._subindices))
+                f.write(b'\n')
+
+    def split(self, 
+              partitions, 
+              features=None, 
+              balance_cardinality: bool = False, 
+              tolerance: float = 0.1, 
+              write: str | bool | None = None): 
         assert not self.is_partition, "dataset is already a partition of an existing dataset."
         if features is None:
-            return self._split_without_feature(**partitions)
+            partitions = self._split_without_feature(**partitions)
         else:
-            return self._split_with_features(partitions, features, tolerance = tolerance, balance_cardinality=balance_cardinality)
+            partitions = self._split_with_features(partitions, features, tolerance = tolerance, balance_cardinality=balance_cardinality)
+        if write:
+            self._write_partition(partitions, write)
+        return partitions
 
-
+    def load_partitions(self, name: str | None, check: bool = False):
+        if name is None: name = type(self._default_partition_name)
+        if os.path.splitext(name)[1] != ".txt": name += ".txt"
+        partition_path = os.path.join(self._db_path, "partitions", name)
+        if not os.path.exists(partition_path):
+            raise FileNotFoundError("could not load partition %s"%name)
+        partitions = {}
+        with open(partition_path, 'rb') as f:
+            for l in f.readlines():
+                l = l.decode('utf-8')
+                name, subindices = l.split(';')
+                subindices = subindices.split(',')
+                partitions[name] = self.get_subdataset(subindices, check)
+        return partitions
+                        
 

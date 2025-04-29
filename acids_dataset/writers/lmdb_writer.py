@@ -1,4 +1,6 @@
 import os
+
+import pdb
 import logging
 import collections
 import dill 
@@ -202,27 +204,37 @@ class LMDBWriter(object):
         )
 
     def build(self):
+        #TODO make lock file
         """Builds the pre-processed database."""
         env = lmdb.open(str(self.output_path.resolve()), 
-                        map_size = self.max_db_size * 1024 ** 3, 
-                        map_async = not self.dyndb, 
-                        writemap = not self.dyndb)
+                        map_size = self.max_db_size * 1024 ** 3) 
         n_seconds = 0
         metadata = {}
         feature_hash = self._init_feature_hash()
         dataset_path = self.dataset_path.resolve().absolute()
         key_generator = iter(KeyIterator())
         with env.begin(write=True) as txn:
-            for current_file in tqdm.tqdm(self._files):
+            for i, current_file in tqdm.tqdm(enumerate(self._files), total=len(self._files)):
                 parser = self.parser(current_file, features=self.features, dataset_path = dataset_path, waveform=self.waveform) 
                 if len(metadata) == 0:
                     metadata = self._update_metadata(parser.get_metadata(), metadata)
-                parsed_time = self._add_file_to_lmdb(txn, parser, self.features, feature_hash, key_generator, self.fragment_class, dataset_path)
+                try:
+                    parsed_time = self._add_file_to_lmdb(txn, parser, self.features, feature_hash, key_generator, self.fragment_class, dataset_path)
+                except lmdb.MapFullError as e:
+                    if self.dyndb:
+                        processed_ratio = i / len(self._files)
+                        add_memory_to_allocate = self.max_db_size * (1 - processed_ratio + 0.01)
+                        self.max_db_size += int(add_memory_to_allocate)
+                        env.set_mapsize(self.max_db_size * 1024 ** 3)
+                    else:
+                        raise e
                 n_seconds += parsed_time
+
             type(self)._add_feature_hash_to_lmdb(txn, feature_hash)
             self._close_features(self.features)
             type(self)._add_features_to_lmdb(txn, self.features)
             type(self)._add_keygen_to_lmdb(txn, key_generator)
+            txn.close()
 
         # write metadata
         metadata_path = self.output_path / "metadata.yaml"

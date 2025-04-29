@@ -32,19 +32,22 @@ def test_dataset_partitions(dataset):
 
     # test random split    
     target_partition = {'train':0.8, 'test':0.2}
-    partitions = dataset.split(target_partition)
+    partitions = dataset.split(target_partition, write="random")
     for k, v in partitions.items():
         for i in range(len(v)):
             out = v[i]
+    dataset.load_partitions("random")
 
-    partitions = dataset.split(target_partition, features=['original_path'])
+    partitions = dataset.split(target_partition, features=['original_path'], write="path")
     for k, v in partitions.items():
         for i in range(len(v)):
            out = v[i]
+    dataset.load_partitions("path")
 
-    partitions = dataset.split(target_partition, features=['original_path'], balance_cardinality=True)
+    partitions = dataset.split(target_partition, features=['original_path'], balance_cardinality=True, write="balanced_path")
     for k, v in partitions.items():
         for i in range(len(v)):
             out = v[i]
+    dataset.load_partitions("balanced_path")
         
 
