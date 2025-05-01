@@ -1,5 +1,5 @@
 import os
-
+import tempfile
 import pdb
 import logging
 import collections
@@ -32,7 +32,6 @@ class LMDBWriter(object):
         dir_parser: Callable = audio_paths_from_dir,
         parser: str | object = RawParser, 
         max_db_size: int | float | None = 100, 
-        dyndb: bool = False, 
         valid_exts: List[str] | None = None,
         filters: List[str] = [], 
         exclude: List[str] = [],
@@ -46,8 +45,8 @@ class LMDBWriter(object):
         Args:
             dataset_path (str | Path): input dataset path  
             output_path (str | Path): preprocessed output path 
-            dir_parser (Callable, optional): _description_. Callback used to locate parsed audio files from input datasets.
-            parser (str | object, optional): _description_. Parser used to extract fragments from a given audio file. 
+            dir_parser (Callable, optional): Callback used to locate parsed audio files from input datasets.
+            parser (str | object, optional): Parser used to extract fragments from a given audio file. 
             fragment_class (str | AudioFragment, optional): AudioFragment subclass used for each fragment. Defaults to "AcidsFragment".
             features (List[AcidsDatasetFeature] | None, optional): Optional list of AcidsDatasetFeature objects for attached features. Defaults to None.
             max_db_size (int | float | None, optional): Maximum dataset size in Gb. Defaults to 100.
@@ -82,7 +81,6 @@ class LMDBWriter(object):
         self.features = features or []
         self.metadata = {'filters': filters, 'exclude': exclude}
         self.waveform = waveform
-        self.dyndb = dyndb
         if check:
             print(f'Dataset path : {dataset_path}')
             print(f'Output path : {output_path}')
@@ -185,6 +183,7 @@ class LMDBWriter(object):
                 feature_hash['original_path'][current_file] = feature_hash['original_path'].get(current_file, [])
                 for fragment in current_data:
                     current_key = next(key_generator)
+                    n_seconds += float(fragment.get_metadata().get('length', '0'))
                     cls._extract_features(fragment, features, current_key, feature_hash)
                     txn.put(
                         current_key.encode(), 
@@ -203,11 +202,10 @@ class LMDBWriter(object):
             dill.dumps(keygen)
         )
 
-    def build(self):
-        #TODO make lock file
+    def build(self, compact: bool = False):
         """Builds the pre-processed database."""
         env = lmdb.open(str(self.output_path.resolve()), 
-                        map_size = self.max_db_size * 1024 ** 3) 
+                        map_size = int(self.max_db_size * 1024 ** 3))
         n_seconds = 0
         metadata = {}
         feature_hash = self._init_feature_hash()
@@ -218,23 +216,15 @@ class LMDBWriter(object):
                 parser = self.parser(current_file, features=self.features, dataset_path = dataset_path, waveform=self.waveform) 
                 if len(metadata) == 0:
                     metadata = self._update_metadata(parser.get_metadata(), metadata)
-                try:
-                    parsed_time = self._add_file_to_lmdb(txn, parser, self.features, feature_hash, key_generator, self.fragment_class, dataset_path)
-                except lmdb.MapFullError as e:
-                    if self.dyndb:
-                        processed_ratio = i / len(self._files)
-                        add_memory_to_allocate = self.max_db_size * (1 - processed_ratio + 0.01)
-                        self.max_db_size += int(add_memory_to_allocate)
-                        env.set_mapsize(self.max_db_size * 1024 ** 3)
-                    else:
-                        raise e
+                parsed_time = self._add_file_to_lmdb(txn, parser, self.features, feature_hash, key_generator, self.fragment_class, dataset_path)
                 n_seconds += parsed_time
 
+            logging.info('adding feature hash to database...')
             type(self)._add_feature_hash_to_lmdb(txn, feature_hash)
             self._close_features(self.features)
+            logging.info('adding features to database...')
             type(self)._add_features_to_lmdb(txn, self.features)
             type(self)._add_keygen_to_lmdb(txn, key_generator)
-            txn.close()
 
         # write metadata
         metadata_path = self.output_path / "metadata.yaml"
@@ -264,7 +254,13 @@ class LMDBWriter(object):
         with open(self.output_path / "config.gin", "w+") as f:
             f.write(gin.config_str())
 
-        env.close()
+        if compact: 
+            with tempfile.TemporaryDirectory() as tmpdir: 
+                for f in ['data.mdb', 'lock.mdb']:
+                    shutil.move(os.path.join(self.output_path, f), os.path.join(tmpdir, f))
+                with lmdb.open(tmpdir, meminit=False, map_async=True) as env:
+                    env.copy(path=str(self.output_path), compact=True)
+
         
     @classmethod
     def update(cls, 

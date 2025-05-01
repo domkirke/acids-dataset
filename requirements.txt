@@ -7,8 +7,8 @@ gin-config
 lmdb
 tqdm
 dill
-numpy
-scipy
+numpy==2.2.5
+scipy==1.15.2
 librosa>=0.10.2
 protobuf
 torch>=2.5.1
@@ -17,3 +17,4 @@ nnaudio
 mir_eval
 resampy
 pretty_midi
+git+https://github.com/iver56/audiomentations/

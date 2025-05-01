@@ -152,7 +152,7 @@ def get_accelerated_device(accelerator = None):
 
 class PadMode(enum.Enum):
     DISCARD = 0
-    ZERO_PAD = 1
+    ZERO = 1
     REPEAT = 2
     REPLICATE = 3
     REFLECT = 4
@@ -161,11 +161,21 @@ class PadMode(enum.Enum):
 def pad(
         chunk,
         target_size,
-        pad_mode
+        pad_mode,
+        discard_if_lower_than: None | float | int = None
     ):
     if pad_mode == PadMode.DISCARD:
         return None
-    elif pad_mode == PadMode.ZERO_PAD:
+    if discard_if_lower_than is not None:
+        if isinstance(discard_if_lower_than, int):
+            if chunk.shape[-1] < discard_if_lower_than: 
+                return None
+        elif isinstance(discard_if_lower_than, float):
+            if chunk.shape[-1] < int(discard_if_lower_than * target_size): 
+                return None
+        else: 
+            raise TypeError('got type %s for discard_if_lower_than'%type(discard_if_lower_than))
+    if pad_mode == PadMode.ZERO:
         return torch.nn.functional.pad(chunk, (0, target_size - chunk.shape[-1]), mode="constant", value=0.)
     elif pad_mode == PadMode.REPEAT:
         n_iter = 0
@@ -180,10 +190,10 @@ def pad(
     elif pad_mode == PadMode.REFLECT:
         n_iter = 0
         while chunk.shape[-1] < target_size:
-            if n_iter > 1: 
-                logging.warning('applying reflect pad more than once ; may provoke undesired behaviour.')
             chunk = torch.nn.functional.pad(chunk, (0, min(target_size - chunk.shape[-1], chunk.shape[-1] - 1)), mode="reflect")
             n_iter += 1
+        if n_iter > 1: 
+            logging.warning('applied reflect pad more than once ; may provoke undesired behaviour.')
         return chunk
     else:
         raise ValueError('pad mode %s not recognized.'%pad_mode)
@@ -227,42 +237,23 @@ def get_subclasses_from_package(package, filter_class):
     return transform_list
 
 
-gin_config_pattern = """
-// Gin configuration file for transform %s.
 
-%s:
-\t%s
+class GinEnv(object):
+    def __init__(self, paths=[]):
+        if not isinstance(paths, list):
+            paths = list(paths)
+        self._paths = paths
+        self._original_config = None
+        self._loc_prefix = None
+    
+    def __enter__(self):
+        self._loc_prefix = list(gin.config._LOCATION_PREFIXES)
+        gin.config._LOCATION_PREFIXES = self._paths
+        self._original_config = gin.config_str()
+        gin.unlock_config()
+        gin.clear_config()
 
-transforms.parse_transform:
-    transform = @transforms.%s()
-"""
-
-
-def generate_config_from_transform(transform_class, config_path):
-    gin_name = f"transforms.{transform_class.__name__}"
-    gin_args = []
-    transform_args = dict(inspect.signature(transform_class.__bases__[0].__init__).parameters)
-    transform_args.update(dict(inspect.signature(transform_class.__init__).parameters))
-    for param_name, param in transform_args.items():
-        if param_name in ["self", "name", "args", "kwargs"]: continue
-        if param_name == "sr": 
-            gin_args.append("sr = %SAMPLE_RATE")
-        else:
-            gin_args.append(f"{param_name} = {param._default}")
-    gin_args = "\n\t".join(gin_args)
-    gin_out = gin_config_pattern%(transform_class.__name__, gin_name, gin_args, transform_class.__name__)
-    with open(config_path, "w+") as f: 
-        f.write(gin_out)
-
-
-def check_transform_configs(module, path):
-    transform_class = getattr(module, "Transform")
-    transform_subclasses = get_subclasses_from_package(module, transform_class)
-    os.makedirs(path, exist_ok=True)
-    for transform in transform_subclasses:
-        if transform == transform_class: continue
-        gin_config_name = transform.__name__.lower() + ".gin"
-        gin_config_path = (path / gin_config_name).resolve()
-        if not gin_config_path.exists():
-            generate_config_from_transform(transform, gin_config_path)
-        
+    def __exit__(self, *args):
+        gin.config._LOCATION_PREFIXES = self._loc_prefix
+        gin.unlock_config()
+        gin.parse_config(self._original_config)

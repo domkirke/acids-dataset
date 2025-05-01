@@ -1,4 +1,5 @@
 import torch
+from math import ceil
 import os
 import random, math, itertools
 from collections import deque
@@ -24,6 +25,7 @@ class AudioDataset(torch.utils.data.Dataset):
                  lazy_paths: str = False,
                  subindices: Iterable[int] | Iterable[bytes] | None = None,
                  parent = None,
+                 n_channels: int | None = None,
                  **kwargs) -> None:
         self._db_path = db_path
         if lazy_import or lazy_paths:
@@ -40,7 +42,8 @@ class AudioDataset(torch.utils.data.Dataset):
         self._index_mapper = lambda x: x
         if parent:
             self.parent = parent
-        super(AudioDataset, self).__init__(**kwargs)
+        self._n_channels = n_channels
+        super(AudioDataset, self).__init__()
 
     def __getitem__(self, index):
         if self._subindices is not None:
@@ -48,6 +51,12 @@ class AudioDataset(torch.utils.data.Dataset):
         fg = self._loader[index]
         outs = _outs_from_pattern(fg, self.output_pattern)
         outs = _transform_outputs(outs, self.transforms)
+        if self._n_channels is not None:
+            if self._n_channels < outs.shape[-2]:
+                outs = outs[..., :self._n_channels, :]
+            elif self._n_channels > outs.shape[-2]:
+                outs = torch.cat([outs] * ceil(self._n_channels / outs.shape[-2]), -2)
+                outs = outs[..., :self._n_channels, :]
         return outs
     
     def __len__(self):
@@ -208,7 +217,7 @@ class AudioDataset(torch.utils.data.Dataset):
             self._write_partition(partitions, write)
         return partitions
 
-    def load_partitions(self, name: str | None, check: bool = False):
+    def load_partition(self, name: str | None, check: bool = False):
         if name is None: name = type(self._default_partition_name)
         if os.path.splitext(name)[1] != ".txt": name += ".txt"
         partition_path = os.path.join(self._db_path, "partitions", name)

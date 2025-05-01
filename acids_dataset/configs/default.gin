@@ -1,7 +1,7 @@
 
 RawParser:
-    chunk_length = 131072
-    hop_length = 65536
+    chunk_length = %CHUNK_LENGTH
+    hop_length = %HOP_LENGTH
     sr = %SAMPLE_RATE
     channels = %CHANNELS 
     pad_mode = "discard"

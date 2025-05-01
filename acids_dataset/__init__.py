@@ -2,14 +2,18 @@ from pathlib import Path
 import yaml
 import gin
 gin.enter_interactive_mode()
-gin.add_config_file_search_path(Path(__file__).parent / "configs")
-gin.add_config_file_search_path(Path(__file__).parent.parent / "custom_configs")
+
+def import_database_configs():
+    gin.add_config_file_search_path(Path(__file__).parent / "configs")
+    gin.add_config_file_search_path(Path(__file__).parent.parent / "custom_configs")
 
 from . import utils
 from . import transforms
 
 TRANSFORM_GIN_PATH = Path(__file__).parent / "configs" / "transforms"
-utils.check_transform_configs(transforms, TRANSFORM_GIN_PATH)
+transforms.check_transform_configs(transforms, TRANSFORM_GIN_PATH)
+def get_transform_config_path(): 
+    return TRANSFORM_GIN_PATH
 
 from . import parsers
 from . import features
@@ -61,3 +65,4 @@ from . import writers
 from . import datasets
 from .preprocess import *
 from .update import *
+from .utils import GinEnv

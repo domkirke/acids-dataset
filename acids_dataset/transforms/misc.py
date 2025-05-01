@@ -131,7 +131,7 @@ class Crop(Transform):
             return x
 
     def apply(self, x):
-        in_point = random.randint(0, x.shape[self.dim])
+        in_point = random.randint(0, x.shape[self.dim] - self.n_signal)
         idx = [slice(None)] * len(x.shape); idx[self.dim] = slice(in_point, in_point + self.n_signal)
         return x.__getitem__(tuple(idx))
 
@@ -399,3 +399,13 @@ class Integrator(Transform):
         assert self.sr is not None, "sr is required for %s"%(type(self).__name__)
     def apply(self, x):
         return integrate(x, self.sr)
+
+
+@gin.configurable(module="transforms")
+class AddNoise(Transform):
+    takes_as_input = Transform.input_types.torch
+    def __init__(self, std=1.e-5, **kwargs):
+        super().__init__(**kwargs)
+        self.std = std
+    def apply(self, x):
+        return x + self.randn_like(x) * 1.e-5

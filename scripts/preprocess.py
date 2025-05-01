@@ -20,15 +20,14 @@ flags.DEFINE_multi_string('filter', [], help="wildcard to filter target files")
 flags.DEFINE_multi_string('exclude', [], help="wildcard to exclude target files")
 flags.DEFINE_multi_string('meta_regexp', [], help="additional regexp for metadata parsing")
 flags.DEFINE_multi_string('override', [], help="additional overridings for configs")
-flags.DEFINE_integer('num_signal', 131072, help="chunk size of audio fragments")
 flags.DEFINE_integer('sample_rate', 44100, help="sample rate")
 flags.DEFINE_integer('channels', 1, help="number of audio channels")
 flags.DEFINE_boolean('check', True, help="has interactive mode for data checking.")
 flags.DEFINE_boolean('force', False, help="force dataset preprocessing if folder already exists")
-flags.DEFINE_integer('max_db_size', 100, help="maximum database size")
-flags.DEFINE_boolean('dyndb', False, help="allows dynamical resize of database")
-flags.DEFINE_integer('chunk_length', 131072, help="number of samples per chunk")
+flags.DEFINE_float('max_db_size', 100, help="maximum database size")
+flags.DEFINE_integer('chunk_length', None, help="number of samples per chunk")
 flags.DEFINE_boolean('waveform', True, help="no waveform parsing")
+flags.DEFINE_boolean('compact', False, help="create compact version of lmdb database")
 
 
 def main(argv):
@@ -48,7 +47,7 @@ def main(argv):
         waveform=FLAGS.waveform, 
         override=FLAGS.override,
         max_db_size = FLAGS.max_db_size, 
-        dyndb = FLAGS.dyndb
+        compact=FLAGS.compact,
     )
 
 

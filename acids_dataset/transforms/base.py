@@ -2,10 +2,34 @@ import numpy as np
 from collections import UserList
 from typing import List
 import random
-import gin
+import gin, os
+import inspect
 import numpy as np
 import torch
 from enum import Enum
+from ..utils import get_subclasses_from_package
+
+
+gin_config_pattern = """
+%s:
+\t%s
+
+transforms.parse_transform:
+    transform = @transforms.%s()
+"""
+
+
+def check_transform_configs(module, path):
+    transform_class = getattr(module, "Transform")
+    transform_subclasses = get_subclasses_from_package(module, transform_class)
+    os.makedirs(path, exist_ok=True)
+    for transform in transform_subclasses:
+        if transform == transform_class: continue
+        gin_config_name = transform.__name__.lower() + ".gin"
+        gin_config_path = (path / gin_config_name).resolve()
+        if not gin_config_path.exists():
+            transform.write_gin_config(gin_config_path)
+        
 
 class AcidsTransformException(Exception):
     pass
@@ -22,11 +46,55 @@ default_cast_table = {
     (TransformInput.torch, TransformInput.torch): lambda x: x
 }
 
+
+gin_config_pattern = """
+%s:
+\t%s
+
+transforms.parse_transform:
+    transform = @transforms.%s()
+"""
+
+
+def generate_config_from_transform(transform_class, config_path):
+    gin_name = f"transforms.{transform_class.__name__}"
+    gin_args = []
+    transform_args = dict(transform_class.init_signature().parameters)
+    for param_name, param in transform_args.items():
+        if param_name in transform_class.dont_export_to_gin_config: continue
+        if param_name == "sr": 
+            gin_args.append("sr = %SAMPLE_RATE")
+        else:
+            default = param._default
+            if (param._default == inspect._empty): 
+                continue
+            if isinstance(param._default, str): 
+                default = f"\"{default}\""
+            gin_args.append(f"{param_name} = {default}")
+    gin_args = "\n\t".join(gin_args)
+    gin_out = gin_config_pattern%(gin_name, gin_args, transform_class.__name__)
+    with open(config_path, "w+") as f: 
+        f.write(gin_out)
+
+
+def check_transform_configs(module, path):
+    transform_class = getattr(module, "Transform")
+    transform_subclasses = get_subclasses_from_package(module, transform_class)
+    os.makedirs(path, exist_ok=True)
+    for transform in transform_subclasses:
+        if transform == transform_class: continue
+        gin_config_name = transform.__name__.lower() + ".gin"
+        gin_config_path = (path / gin_config_name).resolve()
+        if not gin_config_path.exists():
+            generate_config_from_transform(transform, gin_config_path)
+        
+
 class Transform():
     allow_random: bool = True
     input_types = TransformInput
     takes_as_input = TransformInput.none
     cast_table = default_cast_table
+    dont_export_to_gin_config = ["self", "name", "args", "kwargs"]
     def __init__(self,
                  sr: int | None = None, 
                  name: str | None = None, 
@@ -45,6 +113,33 @@ class Transform():
         self.p = p
         self.rand_batchwise = rand_batchwise
         self.rng = np.random.default_rng(12345)
+
+    @classmethod
+    def init_signature(cls):
+        return inspect.signature(cls.__init__)
+
+
+    @classmethod
+    def write_gin_config(cls, config_path):
+        gin_name = f"transforms.{cls.__name__}"
+        gin_args = []
+        transform_args = dict(cls.init_signature().parameters)
+        for param_name, param in transform_args.items():
+            if param_name in cls.dont_export_to_gin_config: continue
+            if param_name == "sr": 
+                gin_args.append("sr = %SAMPLE_RATE")
+            else:
+                default = param._default
+                if (param._default == inspect._empty): 
+                    continue
+                if isinstance(param._default, str): 
+                    default = f"\"{default}\""
+                gin_args.append(f"{param_name} = {default}")
+        gin_args = "\n\t".join(gin_args)
+        gin_out = gin_config_pattern%(gin_name, gin_args, cls.__name__)
+        with open(config_path, "w+") as f: 
+            f.write(gin_out)
+
 
     def type_hash(self, data):
         if isinstance(data, np.ndarray):
@@ -104,9 +199,11 @@ class Compose(UserList):
         Args:
             transform_list (List[Transform]): list of transforms to apply.
         """
-        super.__init__(*transforms)
+        super().__init__(*transforms)
 
     def __call__(self, x: np.ndarray):
         for elm in self:
             x = elm(x)
         return x
+
+

@@ -26,7 +26,8 @@ class TorchaudioBackend(object):
         loudness_threshold, 
         features, 
         dataset_path, 
-        waveform
+        waveform, 
+        discard_if_lower_than
     ) -> List[Callable]:
         def _load_file(fragment_class = dict, audio_path=audio_path):
             try:
@@ -50,7 +51,7 @@ class TorchaudioBackend(object):
             fragments = []
             for i in reversed(range(len(wav))):
                 if wav[i].shape[-1] != chunk_length_smp:
-                    padded_chunk = cls.pad_chunk(wav[i], chunk_length_smp, pad_mode)
+                    padded_chunk = cls.pad_chunk(wav[i], chunk_length_smp, pad_mode, discard_if_lower_than)
                     if padded_chunk is None: 
                         del wav[i]
                         continue
@@ -85,9 +86,10 @@ class TorchaudioBackend(object):
         cls, 
         chunk,
         target_size,
-        pad_mode
+        pad_mode, 
+        discard_if_lower_than
     ):
-        return pad(chunk, target_size, pad_mode)        
+        return pad(chunk, target_size, pad_mode, discard_if_lower_than=discard_if_lower_than)        
 
 class FFMPEGBackend(object):
     @classmethod
@@ -133,7 +135,7 @@ class RawParser(object):
     def __init__(
             self, 
             audio_path: str,
-            chunk_length: int | float = 131072, 
+            chunk_length: int | float, 
             sr: int = 44100, 
             channels: int = 1, 
             hop_length: int | float | None = None,
@@ -144,11 +146,14 @@ class RawParser(object):
             loudness_threshold: float | None = None,
             features: List[AcidsDatasetFeature] | None = None,
             dataset_path: str | None = None,
-            waveform: bool = True
+            waveform: bool = True, 
+            discard_if_lower_than: int | float | None = None
         ):
         self.audio_path = audio_path 
         self.dataset_path = dataset_path
         assert Path(self.audio_path).exists(), f"{self.audio_path} does not seem to exist. Please provide a valid file"
+        if chunk_length is None:
+            raise ValueError('RawParser needs a chunk length.')
         if isinstance(chunk_length, int):
             chunk_length = chunk_length / sr
         self.chunk_length = float(chunk_length)
@@ -176,6 +181,7 @@ class RawParser(object):
         self.loudness_threshold = loudness_threshold
         self.channels = channels
         self.waveform = waveform
+        self.discard_if_lower_than = discard_if_lower_than
         self._parse_features(features or [])
 
     @property
@@ -217,7 +223,8 @@ class RawParser(object):
             loudness_threshold=self.loudness_threshold, 
             features = self._features, 
             dataset_path=self.dataset_path, 
-            waveform=self.waveform
+            waveform=self.waveform,
+            discard_if_lower_than = self.discard_if_lower_than
         ))
 
 

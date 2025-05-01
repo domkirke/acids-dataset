@@ -7,6 +7,7 @@ from pathlib import Path
 from .writers import LMDBWriter
 from typing import List
 
+from . import import_database_configs
 from .writers import get_writer_class
 from .features import AcidsDatasetFeature, append_meta_regexp
 from .utils import append_features, GinEnv
@@ -22,9 +23,9 @@ def preprocess_dataset(
     config: str = 'default.gin', 
     features: List[str | AcidsDatasetFeature] | None = None,
     check=False, 
-    chunk_length: int = 131072,
+    chunk_length: int = None,
     hop_length: int = None, 
-    sample_rate = 44000,
+    sample_rate = 44100,
     channels = 1,
     flt = [],
     exclude = [],
@@ -34,15 +35,16 @@ def preprocess_dataset(
     override = [],
     device: str | None = None, 
     max_db_size: int = 100, 
-    dyndb: bool = False
+    compact: bool = False
     ):
     # parse gin constants
-
+    import_database_configs()
     gin.add_config_file_search_path(Path(__file__).parent / "configs")
     gin.add_config_file_search_path(path)
     gin.constant('SAMPLE_RATE', sample_rate)
-    gin.constant('CHUNK_LENGTH', chunk_length)
-    gin.constant('HOP_LENGTH', hop_length or chunk_length // 2)
+    if chunk_length is not None:
+        gin.constant('CHUNK_LENGTH', chunk_length)
+        gin.constant('HOP_LENGTH', hop_length or chunk_length // 2)
     gin.constant('CHANNELS', channels)
     gin.constant('DEVICE', device)
 
@@ -65,6 +67,8 @@ def preprocess_dataset(
             operative_features.append(f)
 
     gin.bind_parameter('append_features.features', operative_features)
+    if os.path.splitext(config)[-1] != ".gin":
+        config += ".gin"
     gin.parse_config_files_and_bindings([config], override)
     path = Path(path)
     out = out or get_default_output_path(path)
@@ -77,6 +81,5 @@ def preprocess_dataset(
                           check=check, 
                           force=force, 
                           waveform=waveform, 
-                          max_db_size=max_db_size, 
-                          dyndb=dyndb)
-    writer.build()
+                          max_db_size=max_db_size) 
+    writer.build(compact=compact)
