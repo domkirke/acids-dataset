@@ -25,7 +25,6 @@ class AudioDataset(torch.utils.data.Dataset):
                  lazy_paths: str = False,
                  subindices: Iterable[int] | Iterable[bytes] | None = None,
                  parent = None,
-                 n_channels: int | None = None,
                  **kwargs) -> None:
         self._db_path = db_path
         if lazy_import or lazy_paths:
@@ -35,14 +34,13 @@ class AudioDataset(torch.utils.data.Dataset):
         self._metadata = get_metadata_from_path(db_path)
         self._output_pattern = output_pattern
         self._transforms = _parse_transforms_with_pattern(transforms, self._output_pattern)
-        self._channels = channels
+        self._n_channels = channels
         self._subindices = subindices
         self._parent = None
         self._partitions = {}
         self._index_mapper = lambda x: x
         if parent:
             self.parent = parent
-        self._n_channels = n_channels
         super(AudioDataset, self).__init__()
 
     def __getitem__(self, index):
@@ -50,13 +48,7 @@ class AudioDataset(torch.utils.data.Dataset):
             index = self._subindices[index]
         fg = self._loader[index]
         outs = _outs_from_pattern(fg, self.output_pattern)
-        outs = _transform_outputs(outs, self.transforms)
-        if self._n_channels is not None:
-            if self._n_channels < outs.shape[-2]:
-                outs = outs[..., :self._n_channels, :]
-            elif self._n_channels > outs.shape[-2]:
-                outs = torch.cat([outs] * ceil(self._n_channels / outs.shape[-2]), -2)
-                outs = outs[..., :self._n_channels, :]
+        outs = _transform_outputs(outs, self.transforms, self._n_channels)
         return outs
     
     def __len__(self):
@@ -94,6 +86,10 @@ class AudioDataset(torch.utils.data.Dataset):
     @property
     def transforms(self):
         return self._transforms
+
+    @property
+    def features(self) :
+        return self._loader._features
 
     @transforms.setter
     def transforms(self, transforms):

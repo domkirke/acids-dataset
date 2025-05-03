@@ -3,9 +3,12 @@ import yaml
 import gin
 gin.enter_interactive_mode()
 
+ACIDS_DATASET_CONFIG_PATH = Path(__file__).parent / "configs"
+ACIDS_DATASET_CUSTOM_CONFIG_PATH = Path(__file__).parent.parent / "custom_configs"
+
 def import_database_configs():
-    gin.add_config_file_search_path(Path(__file__).parent / "configs")
-    gin.add_config_file_search_path(Path(__file__).parent.parent / "custom_configs")
+    gin.add_config_file_search_path(ACIDS_DATASET_CONFIG_PATH)
+    gin.add_config_file_search_path(ACIDS_DATASET_CUSTOM_CONFIG_PATH)
 
 from . import utils
 from . import transforms

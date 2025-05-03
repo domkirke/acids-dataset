@@ -1,15 +1,17 @@
 RawParser:
-    chunk_length = 131072
-    hop_length = 65536
+    chunk_length = 524288
+    hop_length = 262144
     sr = %SAMPLE_RATE
     channels = %CHANNELS 
     pad_mode = "discard"
+    loudness_threshold = -60
 
 LMDBWriter:
     fragment_class = @AcidsFragment
     parser = @RawParser
     
-append_features:
-    features = [@features.AfterMIDI]
+parse_features:
+   features = [@features.AfterMIDI]
+   device = %DEVICE
     
 

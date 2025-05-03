@@ -36,18 +36,18 @@ def test_dataset_partitions(dataset):
     for k, v in partitions.items():
         for i in range(len(v)):
             out = v[i]
-    dataset.load_partitions("random")
+    dataset.load_partition("random")
 
     partitions = dataset.split(target_partition, features=['original_path'], write="path")
     for k, v in partitions.items():
         for i in range(len(v)):
            out = v[i]
-    dataset.load_partitions("path")
+    dataset.load_partition("path")
 
     partitions = dataset.split(target_partition, features=['original_path'], balance_cardinality=True, write="balanced_path")
     for k, v in partitions.items():
         for i in range(len(v)):
             out = v[i]
-    dataset.load_partitions("balanced_path")
+    dataset.load_partition("balanced_path")
         
 

@@ -33,6 +33,30 @@ def load_file(file_path):
     return torchaudio.load(file_path)
 
 
+
+
+class GinEnv(object):
+    def __init__(self, paths=[], configs=[], bindings=[]):
+        self._paths = checklist(paths)
+        self._original_config = None
+        self._new_configs = checklist(configs)
+        self._new_bindings = checklist(bindings)
+        self._loc_prefix = None
+    
+    def __enter__(self):
+        self._loc_prefix = list(gin.config._LOCATION_PREFIXES)
+        gin.config._LOCATION_PREFIXES = self._paths
+        self._original_config = gin.config_str()
+        with gin.unlock_config():
+            gin.clear_config()
+            gin.parse_config_files_and_bindings(self._new_configs, self._new_bindings)
+
+    def __exit__(self, *args):
+        gin.config._LOCATION_PREFIXES = self._loc_prefix
+        with gin.unlock_config(): 
+            gin.parse_config(self._original_config)
+
+
 def loudness(waveform: torch.Tensor, sample_rate: int):
     r"""
     Custom extension of torchaudio loudness, allowing loudness computation for small chunks
@@ -80,6 +104,8 @@ def loudness(waveform: torch.Tensor, sample_rate: int):
 
     energy_filtered = torch.sum(gated_blocks * energy, dim=-1) / torch.count_nonzero(gated_blocks, dim=-1)
     energy_weighted = torch.sum(g * energy_filtered, dim=-1)
+    if energy_weighted.isnan():
+        return torch.tensor(-torch.inf)
     LKFS = kweight_bias + 10 * torch.log10(energy_weighted)
     return LKFS
 
@@ -98,29 +124,19 @@ def checklist(item, n=1, copy=False):
 def get_random_hash(n=8):
     return "".join([chr(random.randrange(97,122)) for i in range(n)])
 
+
 @gin.configurable()
-def append_features(features=None, device=None):
+def parse_features(features=None, device=None):
     if features is None: 
         return []
     else:
         return [f(device=device) for f in checklist(features)]
 
+def feature_from_gin_config(config_path):
+    with GinEnv(configs=config_path):
+        feature = parse_features
+    return feature
 
-class GinEnv(ContextDecorator):
-    def __init__(self, config_file):
-        self._config_file = config_file
-        self._config_str = None
-
-    def __enter__(self):
-        self._config_str = gin.operative_config_str()
-        gin.unlock_config()
-        gin.clear_config()
-        gin.parse_config_file(self._config_file)
-
-    def __exit__(self, *exc):
-        gin.unlock_config()
-        gin.clear_config()
-        gin.parse_config(self._config_str)
 
 def get_available_cuda_device():
     #TODO (or not, let user decide with CUDA_VISIBLE_DEVICES)
@@ -237,23 +253,8 @@ def get_subclasses_from_package(package, filter_class):
     return transform_list
 
 
-
-class GinEnv(object):
-    def __init__(self, paths=[]):
-        if not isinstance(paths, list):
-            paths = list(paths)
-        self._paths = paths
-        self._original_config = None
-        self._loc_prefix = None
-    
-    def __enter__(self):
-        self._loc_prefix = list(gin.config._LOCATION_PREFIXES)
-        gin.config._LOCATION_PREFIXES = self._paths
-        self._original_config = gin.config_str()
-        gin.unlock_config()
-        gin.clear_config()
-
-    def __exit__(self, *args):
-        gin.config._LOCATION_PREFIXES = self._loc_prefix
-        gin.unlock_config()
-        gin.parse_config(self._original_config)
+def set_gin_constant(constant, value):
+    if constant in gin.config._CONSTANTS:
+        gin.config._CONSTANTS[constant] = value
+    else:
+        gin.constant(constant, value)

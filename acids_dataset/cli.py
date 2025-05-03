@@ -1,5 +1,4 @@
 import sys
-
 from absl import app
 
 AVAILABLE_SCRIPTS = [
@@ -27,14 +26,14 @@ def main():
     command = sys.argv[1]
 
     if command == 'preprocess':
-        from scripts import preprocess
+        from acids_dataset import preprocess
         sys.argv[0] = preprocess.__name__
         app.run(preprocess.main)
     if command == 'update':
-        from scripts import update
+        from acids_dataset import update
         sys.argv[0] = update.__name__
         app.run(update.main)
     elif command == 'info':
-        from scripts import info 
+        from acids_dataset import info 
         sys.argv[0] = info.__name__
         app.run(info.main)

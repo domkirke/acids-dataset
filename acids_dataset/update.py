@@ -1,13 +1,16 @@
 import os
-import re
 import gin
-import logging
 from typing import List
 from pathlib import Path
-from . import get_metadata_from_path, get_writer_class_from_path
-from . import writers
-from .features import AcidsDatasetFeature, append_meta_regexp
-from .utils import GinEnv, append_features
+from absl import flags, app
+
+import sys
+import sys; sys.path.append(str(Path(__file__).parent.parent))
+
+from acids_dataset import get_metadata_from_path, get_writer_class_from_path
+from acids_dataset import writers
+from acids_dataset.features import AcidsDatasetFeature, append_meta_regexp 
+from acids_dataset.utils import GinEnv, parse_features, feature_from_gin_config
 
 
 def update_dataset(
@@ -44,7 +47,7 @@ def update_dataset(
                 print('[error] problem parsing configuration %s'%f)
                 raise e
             with GinEnv(f):
-                operative_features.extend(append_features())
+                operative_features.extend(feature_from_gin_config(f))
         elif isinstance(f, AcidsDatasetFeature):
             operative_features.append(f)
 
@@ -62,3 +65,28 @@ def update_dataset(
         check=check, 
         overwrite=overwrite
     )
+
+
+def main(argv):
+    update_dataset(
+        FLAGS.path, 
+        features=FLAGS.feature,
+        data = FLAGS.data, 
+        overwrite = FLAGS.overwrite, 
+        check = FLAGS.check
+    )
+        
+
+if __name__ == "__main__":
+
+    FLAGS = flags.FLAGS
+    flags.DEFINE_string('path', None, 'dataset path', required=True)
+    flags.DEFINE_multi_string('data', [], help='add audio files to the target dataset.')
+    flags.DEFINE_multi_string('feature', [], help='add features to the target dataset.')
+    flags.DEFINE_multi_string('filter', [], help="wildcard to filter target files")
+    flags.DEFINE_multi_string('exclude', [], help="wildcard to exclude target files")
+    flags.DEFINE_multi_string('meta_regexp', [], 'parses additional blob wildcards as features.')
+    flags.DEFINE_multi_string('override', [], 'add audio files to the target dataset.')
+    flags.DEFINE_boolean('overwrite', False, help="recomputes the feature if already present in the dataset, and overwrites existing files")
+    flags.DEFINE_boolean('check', True, help="recomputes the feature if already present in the dataset")
+    app.run(main)

@@ -141,6 +141,10 @@ class AudioFragment(object):
         return array
 
     def get_audio(self, key: str):
+        if not hasattr(self, "output_type"):
+            raise KeyError('cannot perform get_audio : key %s does not have output_type field'%self.key)
+        if not hasattr(self, "bformat"):
+            raise KeyError('cannot perform get_audio : key %s does not have bformat field'%self.key)
         if self.output_type == "numpy":
             dtype = np.float64
         elif self.output_type == "torch":

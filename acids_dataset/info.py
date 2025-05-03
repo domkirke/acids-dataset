@@ -4,17 +4,10 @@ import yaml
 import os
 from absl import flags, app
 from pathlib import Path
-try:
-    import acids_dataset
-except ImportError as e: 
-    sys.path.append(str((Path(__file__).parent / '..').resolve()))
-    import acids_dataset
-from acids_dataset import get_writer_class_from_path, get_metadata_from_path, get_fragment_class_from_path
 
-FLAGS = flags.FLAGS
-flags.DEFINE_string('path', None, 'dataset path', required=True)
-flags.DEFINE_boolean('files', False, 'list files within dataset')
-flags.DEFINE_boolean('check_metadata', False, 'check metadata discrepencies in dataset')
+import sys
+import sys; sys.path.append(str(Path(__file__).parent.parent))
+from acids_dataset import get_writer_class_from_path, get_metadata_from_path, get_fragment_class_from_path
 
 
 def main(argv):
@@ -53,4 +46,9 @@ def main(argv):
 
     
 if __name__ == "__main__":
+
+    FLAGS = flags.FLAGS
+    flags.DEFINE_string('path', None, 'dataset path', required=True)
+    flags.DEFINE_boolean('files', False, 'list files within dataset')
+    flags.DEFINE_boolean('check_metadata', False, 'check metadata discrepencies in dataset')
     app.run(main)

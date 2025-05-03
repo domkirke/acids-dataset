@@ -8,7 +8,7 @@ import shutil
 import lmdb
 import tqdm
 from pathlib import Path
-from .utils import audio_paths_from_dir, FeatureHash, KeyIterator
+from .utils import audio_paths_from_dir, FeatureHash, KeyIterator, checklist
 from .. import get_fragment_class, get_parser_class_from_path, get_metadata_from_path, get_fragment_class_from_path
 from ..parsers import RawParser, FileNotReadException
 from ..fragments import AudioFragment
@@ -38,6 +38,7 @@ class LMDBWriter(object):
         check: bool = False, 
         force: bool = False,
         waveform: bool = True,
+        log: str | None = None
     ):
         """Object responsible for writing LMDb databases.
         The design here is to instantiate to write environments, and access static functions for reading preprocessed data.
@@ -63,7 +64,7 @@ class LMDBWriter(object):
         """
 
         # parse dataset
-        self.dataset_path = Path(dataset_path)
+        self.dataset_path = list(map(Path, checklist(dataset_path)))
         self._parse_dataset(dir_parser, valid_exts, filters, exclude)
         # create output
         self.output_path = Path(output_path).resolve()
@@ -81,6 +82,7 @@ class LMDBWriter(object):
         self.features = features or []
         self.metadata = {'filters': filters, 'exclude': exclude}
         self.waveform = waveform
+        self.log = log
         if check:
             print(f'Dataset path : {dataset_path}')
             print(f'Output path : {output_path}')
@@ -114,7 +116,9 @@ class LMDBWriter(object):
     def _parse_dataset(self, dir_parser, valid_exts = None, filters=None, exclude=None, dataset_path=None):
         """Extract target audio files from the directories"""
         dataset_path = dataset_path or self.dataset_path
-        self._files = dir_parser(dataset_path, valid_exts = valid_exts, flt=filters, exclude=exclude)
+        self._files = []
+        for path in checklist(self.dataset_path):
+            self._files.extend(dir_parser(path, valid_exts = valid_exts, flt=filters, exclude=exclude))
         if len(self._files) == 0:
             raise RuntimeError(f'no valid files were found in {dataset_path} with flt={filters} and exclude={exclude}.')
         self.valid_exts = valid_exts
@@ -202,6 +206,12 @@ class LMDBWriter(object):
             dill.dumps(keygen)
         )
 
+    def _retrieve_basedir_from_path(self, audio_path):
+        for s in checklist(self.dataset_path):
+            if Path(audio_path).is_relative_to(s):
+                return s
+        raise FileNotFoundError('Could not extract dataset path from %s'%audio_path)
+
     def build(self, compact: bool = False):
         """Builds the pre-processed database."""
         env = lmdb.open(str(self.output_path.resolve()), 
@@ -209,15 +219,20 @@ class LMDBWriter(object):
         n_seconds = 0
         metadata = {}
         feature_hash = self._init_feature_hash()
-        dataset_path = self.dataset_path.resolve().absolute()
         key_generator = iter(KeyIterator())
         with env.begin(write=True) as txn:
             for i, current_file in tqdm.tqdm(enumerate(self._files), total=len(self._files)):
+                dataset_path = self._retrieve_basedir_from_path(current_file)
                 parser = self.parser(current_file, features=self.features, dataset_path = dataset_path, waveform=self.waveform) 
                 if len(metadata) == 0:
                     metadata = self._update_metadata(parser.get_metadata(), metadata)
                 parsed_time = self._add_file_to_lmdb(txn, parser, self.features, feature_hash, key_generator, self.fragment_class, dataset_path)
                 n_seconds += parsed_time
+                pid = os.getpid()
+                n_objs = len(os.listdir(f'/proc/{pid}/fd'))
+                if self.log: 
+                    with open(self.log, "a+") as file: 
+                        file.write(f'{i}\t{current_file}\n->{key_generator.current_idx} ({n_objs} files opened)')
 
             logging.info('adding feature hash to database...')
             type(self)._add_feature_hash_to_lmdb(txn, feature_hash)
@@ -290,6 +305,30 @@ class LMDBWriter(object):
         n_chunks = metadata['n_chunks']
         n_seconds = metadata['n_seconds']
 
+        # check
+        if check:
+            ('updating target dataset %s :'%path)
+            if len(features) > 0:
+                print('adding features : ')
+                for i, f in enumerate(features):
+                    print('%d: %s'%(i, f))
+            if len(data) > 0:
+                print('parsing additional audio files : ')
+                for i, d in enumerate(data):
+                    print('%d: %s'%(i, d))
+
+            out = None
+            while out is None:
+                out = input('proceed? (y/n): ')
+                if out.lower() == "y":
+                    out = True
+                elif out.lower() == "n":
+                    out = False
+                else:
+                    out = None
+            if not out: 
+                exit()
+            
         # parse features
         with env.begin(write=True) as txn:
             # parse features
@@ -368,15 +407,16 @@ class LMDBLoader(object):
             lazy_paths (str | List[str] | None, optional): _description_. Defaults to None.
         """
         self._db_path = db_path
-        self._database = self.open(db_path, readonly=True) 
         self._metadata = get_metadata_from_path(db_path)
         self._fragment_class = get_fragment_class(self._metadata.get('fragment_class'))
         self._output_type = output_type
         self._length = self._metadata.get('n_chunks')
         keygen_class = getattr((locals().get(self._metadata['writer_class']) or LMDBWriter), "KeyGenerator", KeyIterator)
         filter_keys = list(map(lambda x: keygen_class.from_str(x), non_buffer_keys))
+        self._database = self.open(db_path, readonly=True) 
         with self._database.begin() as txn:
             self._keys = list(filter(lambda x: x not in filter_keys, txn.cursor().iternext(values=False)))
+            self._features = list(dict(self.get_feature_hash(txn)).keys())
             self._length = len(self._keys)
             self._keygen = dill.loads(txn.get('keygen'.encode('utf-8')))
 
@@ -411,16 +451,20 @@ class LMDBLoader(object):
     def keygen(self): 
         return self._keygen
 
+    @property
+    def features(self): 
+        return self._features
+
     def get_feature_hash(self, txn=None):
         transaction = txn or self._database.begin()
         feature_hash = dill.loads(transaction.get('feature_hash'.encode('utf-8'))) 
-        if txn is not None: transaction.__exit__()
+        if txn is None: transaction.__exit__()
         return feature_hash
 
     def get_features(self, txn=None):
         transaction = txn or self._database.begin()
         features = dill.loads(transaction.get('features'.encode('utf-8'))) 
-        if txn is not None: transaction.__exit__()
+        if txn is None: transaction.__exit__()
         return features 
 
     def iter_fragment_keys(self, txn=None):
@@ -428,7 +472,7 @@ class LMDBLoader(object):
         for key in txn.cursor().iternext(values=False):
             if key in non_buffer_keys:
                 yield key
-        if txn is not None: transaction.__exit__()
+        if txn is None: transaction.__exit__()
             
     def iter_fragments(self, txn: lmdb.Environment | None = None) -> Tuple[str, AudioFragment]:
         """iter_fragments can be used to iterate contained fragments.
@@ -444,7 +488,7 @@ class LMDBLoader(object):
             for key in txn.cursor().iternext(values=False):
                 if key in non_buffer_keys:
                     yield key, self._fragment_class(txn.get(key))
-        if txn is not None: transaction.__exit__()
+        if txn is None: transaction.__exit__()
 
     def parse_from_path(self, path):
         """parse_from_path direcly returns the iterator, and the feature hash, from a given database.

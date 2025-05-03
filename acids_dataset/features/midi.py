@@ -99,6 +99,13 @@ class AfterMIDI(AcidsDatasetFeature):
         bp = type(self)._get_bp_instance(device, sr=sr)
         return bp(audio_data)
 
+    def get_midi_path(self, path, relative_midi_path=None):
+        relative_midi_path = relative_midi_path or []
+        searchable_paths = list(self.searchable_midi_paths)
+        searchable_paths.extend(relative_midi_path)
+        valid_midi_files = get_midis_for_file(path, searchable_paths=searchable_paths)
+        return get_midi_from_candidates(valid_midi_files)
+
     def _extract_from_file(self, midi_path, sr=None, start=None, end=None, length=None):
         midi_data = pretty_midi.PrettyMIDI(str(midi_path))
         if (start is not None) or (end is not None):
@@ -111,13 +118,6 @@ class AfterMIDI(AcidsDatasetFeature):
         midi_path = self._tmp_midi_folder / f"{self._file_buffer.current_id:09d}.mid"
         midi_data.write(str(midi_path))
         self._file_buffer[path] = midi_path
-
-    def get_midi_path(self, path, relative_midi_path=None):
-        relative_midi_path = relative_midi_path or []
-        searchable_paths = list(self.searchable_midi_paths)
-        searchable_paths.extend(relative_midi_path)
-        valid_midi_files = get_midis_for_file(path, searchable_paths=searchable_paths)
-        return get_midi_from_candidates(valid_midi_files)
 
     def get_midi(self, audio_path=None, audio=None, sr=None):
         midi_path = self.get_midi_path(audio_path, relative_midi_path=self.relative_midi_path)
