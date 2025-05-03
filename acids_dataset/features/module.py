@@ -16,25 +16,26 @@ class ModuleEmbedding(AcidsDatasetFeature):
                  module_path: str | Path | None = None, 
                  module_sr: int | None = None,
                  method: str = "forward", 
-                 use_pre_hook: bool = False, 
                  transforms: List[adt.Transform] | None = None,
                  batch_transforms: bool = True,
                  sr: int | None = None,
+                 retain_module: bool = False,
                  **kwargs):
         super().__init__(**kwargs)
         self.sr = sr
+        self.retain_module = retain_module
         self._init_module(module, module_path, module_sr, method, self.device)
-        self._init_pre_hook(use_pre_hook)
         self._init_transforms(transforms, batch_transforms)
 
     @property
     def default_feature_name(self):
         return "embedding"
 
-    def _init_pre_hook(self, use_pre_hook: bool = False):
-        self.use_pre_hook = use_pre_hook
-        if self.use_pre_hook:
-            self.pre_hook = self._process_pre_hook
+    def __getstate__(self):
+        statedict = super().__getstate__()
+        if not self.retain_module: 
+            del statedict['_module']
+        return statedict
 
     def _init_module(self, module=None, module_path=None, module_sr=None, method="forward", device='cpu'):
         if isinstance(device, str): device = torch.device(device)
@@ -45,17 +46,17 @@ class ModuleEmbedding(AcidsDatasetFeature):
             assert module is None, "either module or module_path must be given"
             self._load_module_from_path(module_path)
         else:
-            assert module is None, "either module or module_path must be given"
-        assert hasattr(module, method), "method %s not in %s"%(method, module)
-        assert callable(getattr(module, method)), "method %s is not callable"%(method)
+            raise ValueError("either module or module_path must be given")
+        assert hasattr(self._module, method), "method %s not in %s"%(method, module)
+        assert callable(getattr(self._module, method)), "method %s is not callable"%(method)
         self._method = method
-        module = module.to(device)
-        self._module = module 
+        self._module = self._module.to(device)
         self._module.eval()
         self._module_sr = module_sr
 
     def _load_module_from_path(self, module_path): 
         if os.path.splitext(module_path)[1] == ".ts":
+            assert not self.retain_module, "retain_module must be False if given a .ts file (TorchScript modules are not pickable)"
             self._module = torch.jit.load(module_path)
         else:
             raise RuntimeError("cannot load model %s"%module_path)
@@ -95,6 +96,8 @@ class ModuleEmbedding(AcidsDatasetFeature):
         return out.cpu().numpy()
 
     def from_fragment(self, fragment, write: bool = True):
+        if self._module is None: 
+            raise RuntimeError('ModuleEmbedding has no _module. If coming from pickling, set retain_module kwargs to True when saving feature in the database.')
         audio = self._audio_from_fragment(fragment)
         out = self._process_audio(audio)
         if write: 

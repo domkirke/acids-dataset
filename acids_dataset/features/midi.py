@@ -81,6 +81,7 @@ class AfterMIDI(AcidsDatasetFeature):
         self.allow_basic_pitch = allow_basic_pitch
         self.relative_midi_path = relative_midi_path
         self._tmp_midi_folder = Path(tempfile.mkdtemp()).resolve()
+        if not self._tmp_midi_folder.exists(): os.makedirs(str(self._tmp_midi_folder))
         self._file_buffer = FileHash()
         os.makedirs(self._tmp_midi_folder, exist_ok=True)
 
@@ -138,7 +139,8 @@ class AfterMIDI(AcidsDatasetFeature):
         self._write_midi_buffer(path, midi_data)
 
     def close(self):
-        shutil.rmtree(self._tmp_midi_folder)
+        if self._tmp_midi_folder.exists():
+            shutil.rmtree(self._tmp_midi_folder)
 
     def from_fragment(self, fragment, write: bool = True):
         audio_path = getattr(fragment, "audio_path", None)

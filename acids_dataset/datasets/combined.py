@@ -17,8 +17,9 @@ class CombinedAudioDataset(torch.utils.data.Dataset):
         assert len(datasets) > 1, "CombinedAudioDataset must have at least 2 datasets as inputs"
         self._compare_datasets(datasets)
         if weights is None: 
-            weights = [1. ] * len(datasets)
+            weights = [1 / len(datasets) ] * len(datasets)
         assert len(weights) == len(datasets), "datasets and weights must be the same size"
+        self._weights = weights
         self._datasets = datasets
         self._dataset_map = cumsum([len(d) for d in self._datasets])
         self._output_pattern = self._datasets[0]._output_pattern
@@ -45,6 +46,13 @@ class CombinedAudioDataset(torch.utils.data.Dataset):
             return sum([len(d) for d in self._datasets])
         else:
             return sum([len(s) for s in self._subindices])
+
+    def get_weighted_sampler(self, valid: bool = False, replacement: bool = False):
+        weights = sum([[self._weights[i]] * len(self._datasets[i]) for i in range(len(self._datasets))], [])
+        if valid:
+            return torch.utils.data.WeightedRandomSampler(weights, len(self), replacement=replacement)
+        else: 
+            return torch.utils.data.WeightedRandomSampler(weights, len(self), replacement=replacement, generator=torch.Generator().manual_seed(42))
 
     @property 
     def parent(self):

@@ -219,7 +219,7 @@ class Mute(Transform):
                 return torch.zeros_like(x)
         else:
             if self.noise_std > 0:
-                return np.random.rand(x) * self.noise_std
+                return np.random.random(size=x.shape) * self.noise_std
             else:
                 return np.zeros_like(x)
 
@@ -408,4 +408,4 @@ class AddNoise(Transform):
         super().__init__(**kwargs)
         self.std = std
     def apply(self, x):
-        return x + self.randn_like(x) * 1.e-5
+        return x + torch.randn_like(x) * 1.e-5

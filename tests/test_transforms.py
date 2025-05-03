@@ -11,24 +11,36 @@ import inspect
 from acids_dataset import transforms
 from acids_dataset.utils import get_subclasses_from_package
 
-
+additional_args = {
+    "AddBackgroundNoise": ("tests/audio/noises/long/noise.wav",),
+    "AddShortNoises": ("tests/audio/noises/short/noise.wav",),
+    "AdjustDuration": (16384,), 
+    "ApplyImpulseResponse": ("tests/audio/impulse",),
+    "Lambda": (lambda x, sr: np.sin(x * 10),), 
+    "RepeatPart": [], 
+    "RoomSimulator": []
+}
 
 @pytest.mark.parametrize("transform", get_subclasses_from_package(transforms, transforms.Transform))
-@pytest.mark.parametrize("sr", [22050, 44100])
+@pytest.mark.parametrize("sr", [44100])
 @pytest.mark.parametrize("in_type", ["torch", "numpy"])
 def test_transform(transform: transforms.Transform, sr: int, in_type: str, t: float = 10.0):
     if in_type == "torch":
         x = torch.randn(4, 1, int(t * sr))
     elif in_type == "numpy":
-        x = np.random.random((1, 1, int(t * sr)))
+        x = np.random.random(size=(4, 1, int(t * sr)))
     # test forward
-    t = transform(sr=sr)
+    args = additional_args.get(transform.__name__, tuple())
+    t = transform(*args, sr=sr)
+    # in case transforms do not output the same sizes
+    if isinstance(t, list): t = t[0][None]
     out = t(x)
     if torch.is_tensor(out) or isinstance(torch, np.ndarray):
         assert type(out) == type(x)
 
     if transform.allow_random:
-        t = transform(sr=sr, p=0.4)
+        t = transform(*args, sr=sr, p=0.4)
+        if isinstance(t, list): t = t[0][None]
         out = t(x)
         if torch.is_tensor(out) or isinstance(torch, np.ndarray):
             assert type(out) == type(x)

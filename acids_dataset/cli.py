@@ -37,3 +37,8 @@ def main():
         from acids_dataset import info 
         sys.argv[0] = info.__name__
         app.run(info.main)
+    elif command == "add_embedding": 
+        from acids_dataset import add_embedding
+        sys.argv[0] = add_embedding.__name__
+        app.run(add_embedding.main)
+        

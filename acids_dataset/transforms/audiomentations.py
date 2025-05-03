@@ -4,9 +4,15 @@ import inspect
 from .base import Transform
 from . import misc
 from ..utils import get_subclasses_from_package
+import numpy as np
+
+__bypassed_audiomentations = [
+    "BaseButterworthFilter",
+    "BaseWaveformTransform", 
+]
 
 
-__augmentations_to_import = list(filter(lambda x: x.get_class_fullname() not in dir(misc), 
+__augmentations_to_import = list(filter(lambda x: (x.get_class_fullname() not in dir(misc)) and (x.get_class_fullname() not in __bypassed_audiomentations), 
                                         get_subclasses_from_package(ta.augmentations, ta.core.transforms_interface.BaseTransform) 
                             ))
 
@@ -15,7 +21,7 @@ __augmentations_to_import = list(filter(lambda x: x.get_class_fullname() not in 
 def build_audiomentation_wrapper(cls): 
     class _AudiomentationWrapper(Transform):
         obj_class = cls
-        takes_as_input = Transform.input_types.torch
+        takes_as_input = Transform.input_types.numpy
         dont_export_to_gin_config = ["self", "name", "args", "kwargs", "sample_rate"]
         def __init__(self, *args, p=None, **kwargs):
             transform_args = {'sr': kwargs.get('sr'), 'name': kwargs.get('name')}
@@ -42,7 +48,22 @@ def build_audiomentation_wrapper(cls):
             return cls_kwargs
 
         def apply(self, x):
-            return self._obj(x, sample_rate=self.sr)
+            if x.ndim == 1: 
+                out = self._obj(x[None], sample_rate=self.sr)
+            else: 
+                if self._obj.supports_multichannel and x.ndim <= 3:
+                    if x.ndim == 2:
+                        out = self._obj(x.reshape(-1, x.shape[-1]), sample_rate=self.sr)
+                    elif x.ndim == 3:
+                        out = np.stack([self._obj(x_tmp, sample_rate=self.sr) for x_tmp in x])
+                else:
+                    batch_size = x.shape[:-1]
+                    outs = []
+                    for sig in x.reshape(-1, x.shape[-1]): 
+                        outs.append(self._obj(sig, sample_rate=self.sr))
+                    out = np.stack(outs).reshape(batch_size + (-1, ))
+            return out
+            
         
     new_class = type(obj.__name__, (_AudiomentationWrapper,), dict(_AudiomentationWrapper.__dict__))
     new_class = gin.configurable(new_class, module="transforms")

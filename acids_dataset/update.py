@@ -10,7 +10,7 @@ import sys; sys.path.append(str(Path(__file__).parent.parent))
 from acids_dataset import get_metadata_from_path, get_writer_class_from_path
 from acids_dataset import writers
 from acids_dataset.features import AcidsDatasetFeature, append_meta_regexp 
-from acids_dataset.utils import GinEnv, parse_features, feature_from_gin_config
+from acids_dataset.utils import GinEnv, parse_features, feature_from_gin_config, set_gin_constant
 
 
 def update_dataset(
@@ -30,9 +30,9 @@ def update_dataset(
     gin.add_config_file_search_path(Path(__file__).parent / "configs")
     gin.add_config_file_search_path(path)
     metadata = get_metadata_from_path(path)
-    gin.constant('SAMPLE_RATE', metadata['sr'])
-    gin.constant('CHANNELS', metadata['channels'])
-    gin.constant('DEVICE', device)
+    set_gin_constant('SAMPLE_RATE', metadata['sr'])
+    set_gin_constant('CHANNELS', metadata['channels'])
+    set_gin_constant('DEVICE', device)
 
     # parse features
     operative_features = []

@@ -276,6 +276,22 @@ class LMDBWriter(object):
                 with lmdb.open(tmpdir, meminit=False, map_async=True) as env:
                     env.copy(path=str(self.output_path), compact=True)
 
+    @classmethod
+    def get_feature_hash(cls, txn):
+        feature_hash = dill.loads(txn.get('feature_hash'.encode('utf-8'))) 
+        return feature_hash
+
+    @classmethod
+    def get_features(cls, txn=None):
+        features = dill.loads(txn.get('features'.encode('utf-8'))) 
+        return features 
+
+    @classmethod
+    def iter_fragment_keys(cls, txn):
+        non_keys = list(map(cls.KeyGenerator.from_str, non_buffer_keys))
+        for key in txn.cursor().iternext(values=False):
+            if key not in non_keys:
+                yield key
         
     @classmethod
     def update(cls, 
@@ -340,6 +356,7 @@ class LMDBWriter(object):
                 for key in cls.iter_fragment_keys(txn):
                     fragment = fragment_class(txn.get(key))
                     cls._extract_features(fragment, features, key, feature_hash, overwrite=overwrite)
+                    txn.put(key, fragment.serialize())
 
             # then, add additional data if needed
             parser_class = get_parser_class_from_path(path)
@@ -378,7 +395,6 @@ class LMDBWriter(object):
                 metadata.update(n_seconds=n_seconds, n_chunks=n_chunks, features={cls.get_feature_name(f): str(f) for f in features})
 
             cls._add_feature_hash_to_lmdb(txn, feature_hash)
-            cls._close_features(features)
             cls._add_features_to_lmdb(txn, features)
 
             # write metadata
@@ -394,7 +410,7 @@ class LMDBLoader(object):
 
     def __init__(self, 
                  db_path: str | Path, 
-                 output_type: str = Literal["numpy", "torch"],
+                 output_type: Literal["numpy", "torch"] = "torch",
                  lazy_import: bool = False, 
                  lazy_paths: str | List[str] | None = None
                  ):
@@ -469,8 +485,9 @@ class LMDBLoader(object):
 
     def iter_fragment_keys(self, txn=None):
         transaction = txn or self._database.begin()
-        for key in txn.cursor().iternext(values=False):
-            if key in non_buffer_keys:
+        non_keys = list(map(self._keygen.from_str, non_buffer_keys))
+        for key in transaction.cursor().iternext(values=False):
+            if key not in non_keys:
                 yield key
         if txn is None: transaction.__exit__()
             
@@ -484,9 +501,10 @@ class LMDBLoader(object):
             : key, fragment (Tuple[str, AcidsFragment]): key and fragments
         """
         transaction = txn or self._database.begin()
+        non_keys = list(map(self._keygen.from_str, non_buffer_keys))
         with self._database.begin(readonly=True) as txn:
             for key in txn.cursor().iternext(values=False):
-                if key in non_buffer_keys:
+                if key not in non_keys:
                     yield key, self._fragment_class(txn.get(key))
         if txn is None: transaction.__exit__()
 
@@ -506,6 +524,6 @@ class LMDBLoader(object):
         return iterator, feature_hash
 
 
-LMDBWriter.loader = "LMDBLoader"
-LMDBLoader.writer = "LMDBWriter"
+LMDBWriter.loader = LMDBLoader
+LMDBLoader.writer = LMDBWriter
 
