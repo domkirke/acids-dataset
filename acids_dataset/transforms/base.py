@@ -179,10 +179,10 @@ class Transform():
                 x = self.apply(x)
         return x
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args, _force_transform: bool = False, **kwargs):
         data_in = args[0]
         args = tuple(map(self._parse_arg, args))
-        if (self.p is None) or (not self.allow_random):
+        if (self.p is None) or (not self.allow_random) or (_force_transform):
             out = self.apply(*args, **kwargs)
         else:
             out = self.apply_random(*args, **kwargs)
@@ -199,9 +199,16 @@ class Compose(UserList):
         Args:
             transform_list (List[Transform]): list of transforms to apply.
         """
+        for i, t in enumerate(transforms): 
+            assert isinstance(t, Transform), "got wrong type for transform #%d : %s"%(i, type(t))
         super().__init__(*transforms)
 
-    def __call__(self, x: np.ndarray):
+    def apply(self, x):
+        for elm in self: 
+            x = elm.apply(x)
+        return x
+
+    def __call__(self, x):
         for elm in self:
             x = elm(x)
         return x

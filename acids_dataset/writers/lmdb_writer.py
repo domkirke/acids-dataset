@@ -232,7 +232,7 @@ class LMDBWriter(object):
                 n_objs = len(os.listdir(f'/proc/{pid}/fd'))
                 if self.log: 
                     with open(self.log, "a+") as file: 
-                        file.write(f'{i}\t{current_file}\n->{key_generator.current_idx} ({n_objs} files opened)')
+                        file.write(f'{i}\t{current_file}->{key_generator.current_idx} ({n_objs} files opened)\n')
 
             logging.info('adding feature hash to database...')
             type(self)._add_feature_hash_to_lmdb(txn, feature_hash)

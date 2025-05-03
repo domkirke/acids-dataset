@@ -9,9 +9,9 @@ from ..transforms.pitch import BasicPitch
 import gin
 import torch
 import pretty_midi
+import tempfile
 
 MIDI_EXTS = [".mid", ".midi"]
-_TMP_MIDI_PATH = Path("/tmp") / "acids_dataset" / "midi" 
 
 class FeatureException(Exception):
     pass
@@ -71,7 +71,6 @@ class AfterMIDI(AcidsDatasetFeature):
     bp = {} 
     feature_name = "midi"
     searchable_midi_paths = [".", "../midi", "./midi", "../MIDI", "./MIDI"]
-    tmp_buffer_paths = _TMP_MIDI_PATH
 
     def __init__(self, 
                  allow_basic_pitch: bool = True, 
@@ -81,8 +80,8 @@ class AfterMIDI(AcidsDatasetFeature):
         super().__init__(**kwargs)
         self.allow_basic_pitch = allow_basic_pitch
         self.relative_midi_path = relative_midi_path
+        self._tmp_midi_folder = Path(tempfile.mkdtemp()).resolve()
         self._file_buffer = FileHash()
-        self._tmp_midi_folder = _TMP_MIDI_PATH / get_random_hash(8)
         os.makedirs(self._tmp_midi_folder, exist_ok=True)
 
     def __repr__(self):

@@ -17,12 +17,16 @@ gin.add_config_file_search_path(str((CURRENT_TEST_DIR / '..' / 'acids_dataset' /
 def test_name(request):
     return request.node.name
 
-def get_feature_configs(feature_name):
-    feature_path = Path(__file__).parent / ".." / "acids_dataset" / "configs" / "features" 
+def feature_config_from_path(feature_path, feature_name):
     if not feature_path.exists():
         return []
     feature_configs = list(filter(lambda x: re.match(rf"{feature_name}.*\.gin", x) is not None, os.listdir(feature_path.resolve())))
     return [(feature_path.resolve(), fc) for fc in feature_configs]
+
+def get_feature_configs(feature_name):
+    configs = feature_config_from_path(Path(__file__).parent / ".." / "acids_dataset" / "configs" / "features", feature_name)
+    configs.extend(feature_config_from_path(Path(__file__).parent / "configs" / "features", feature_name))
+    return configs
 
 def get_available_features():
     feature_path = Path(__file__).parent / ".." / "acids_dataset" / "configs" / "features" 

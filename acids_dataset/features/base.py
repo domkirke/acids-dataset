@@ -35,6 +35,7 @@ class AcidsDatasetFeature(object):
         ):
         self.feature_name = name or self.default_feature_name
         self.hash_from_feature = hash_from_feature or getattr(type(self), "hash_from_feature", None)
+        self.device = device
         if self.hash_from_feature is not None: 
             self.has_hash = True
         self.to(device)

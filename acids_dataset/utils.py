@@ -134,7 +134,7 @@ def parse_features(features=None, device=None):
 
 def feature_from_gin_config(config_path):
     with GinEnv(configs=config_path):
-        feature = parse_features
+        feature = parse_features()
     return feature
 
 
