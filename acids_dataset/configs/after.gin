@@ -10,8 +10,8 @@ LMDBWriter:
     fragment_class = @AcidsFragment
     parser = @RawParser
     
-parse_features:
-   features = [@features.AfterMIDI]
-   device = %DEVICE
+#parse_features:
+#   features = [@features.AfterMIDI]
+#   device = %DEVICE
     
 

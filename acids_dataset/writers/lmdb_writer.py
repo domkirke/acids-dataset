@@ -404,6 +404,44 @@ class LMDBWriter(object):
 
         env.close()
         cls._close_features(features)
+        
+    @classmethod
+    def add_feature_hash(cls, path, feature, feature_hash, keygen=None):
+        path = Path(path).resolve()
+        assert path.exists(), f"preprocessed dataset {path} does not seem to exist."
+        keygen = keygen or cls.KeyGenerator
+
+        # create env
+        env = lmdb.open(str(path))
+        f_key = keygen.from_str('feature')
+        fh_key = keygen.from_str('feature_hash')
+        with env.begin(write=True) as txn:
+            original_feature = dill.load(txn.get(f_key))
+            # write feature hash
+            original_feature_hash = dill.load(txn.get(fh_key))
+            original_feature_hash[feature] = feature_hash
+            txn.put(fh_key, dill.dump(original_feature_hash))
+
+    @classmethod
+    def append_to_feature_metadata(cls, path, feature, metadata, keygen=None):
+        path = Path(path).resolve()
+        assert path.exists(), f"preprocessed dataset {path} does not seem to exist."
+        keygen = keygen or cls.KeyGenerator
+
+        # create env
+        env = lmdb.open(str(path))
+        f_key = keygen.from_str('feature')
+        with env.begin(write=True) as txn:
+            original_feature = dill.load(txn.get(f_key))
+            original_feature.metadata.update(metadata)
+            # write feature hash
+            txn.put(f_key, dill.dump(original_feature))
+    
+
+
+
+
+
 
 
 class LMDBLoader(object):

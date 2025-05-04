@@ -8,9 +8,10 @@ import lmdb, random
 from .datasets import get_available_datasets, get_dataset
 
 from acids_dataset import get_fragment_class
+from acids_dataset.datasets import AudioDataset
 from acids_dataset.utils import set_gin_constant, feature_from_gin_config
 from acids_dataset.writers import LMDBWriter, read_metadata
-from acids_dataset.features import Mel, Loudness, AfterMIDI
+from acids_dataset.features import Mel, Loudness, AfterMIDI, hash_from_clustering
 
 from tests.module_tests import *
 
@@ -151,3 +152,31 @@ def test_module(config, dataset, feature_path, feature_config, test_name, test_k
             audio = ae.get_audio("waveform")
             embedding = ae.get_array(module_feature[0].feature_name)
             assert embedding.shape[0] == (len(module_feature[0]._transforms) + 1)
+
+
+        
+@pytest.mark.parametrize('config', ['default.gin'])
+@pytest.mark.parametrize("dataset", ['simple'])
+@pytest.mark.parametrize('feature_path,feature_config', get_feature_configs('mel'))
+def test_feature_clustering(config, dataset, feature_path, feature_config, test_name, test_k=10):
+    gin.add_config_file_search_path(feature_path)
+    gin.parse_config_file(config)
+    gin.parse_config_file(feature_config)
+
+    dataset_path = get_dataset(dataset)
+    dataset_out = OUT_TEST_DIR / "compiled" / test_name
+    if dataset_out.exists():
+        shutil.rmtree(dataset_out.resolve())
+
+    # extract mel
+    mel_feature = Mel()
+
+    # build dataset
+    writer = LMDBWriter(dataset_path, dataset_out, features=[mel_feature])
+    writer.build()
+
+    # hash from cluster
+    dataset = AudioDataset(dataset_out)
+    kmeans = hash_from_clustering(mel_feature.feature_name, dataset, 3, verbose=True)
+
+

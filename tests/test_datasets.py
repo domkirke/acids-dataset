@@ -12,7 +12,7 @@ from pathlib import Path
 from acids_dataset.writers import audio_paths_from_dir, LMDBWriter, read_metadata
 from acids_dataset.parsers import raw_parser as raw
 from acids_dataset.datasets import AudioDataset
-from acids_dataset.utils import loudness
+from acids_dataset.utils import loudness, set_gin_constant
 from acids_dataset import transforms
 from acids_dataset import get_fragment_class, features, preprocess_dataset
 from .datasets import get_available_datasets, get_dataset, get_available_datasets_with_filters
@@ -77,8 +77,8 @@ def test_raw_parser(dataset, test_name, parser, import_backend, pad_mode, chunk_
 @pytest.mark.parametrize("dataset", get_available_datasets())
 def test_build_dataset(config, dataset, test_name, test_k = 1):
     # test writing
-    gin.constant('SAMPLE_RATE', 44100)
-    gin.constant('CHANNELS', 1)
+    set_gin_constant('SAMPLE_RATE', 44100)
+    set_gin_constant('CHANNELS', 1)
     gin.parse_config_file(config)
     dataset_path = get_dataset(dataset)
     dataset_out = OUT_TEST_DIR / "compiled" / test_name
@@ -102,8 +102,8 @@ def test_build_dataset(config, dataset, test_name, test_k = 1):
 @pytest.mark.parametrize('config', ['default.gin'])
 def test_slakh_dataset(config, test_name, test_k=2):
     # test writing
-    gin.constant('SAMPLE_RATE', 44100)
-    gin.constant('CHANNELS', 1)
+    set_gin_constant('SAMPLE_RATE', 44100)
+    set_gin_constant('CHANNELS', 1)
     gin.parse_config_file(config)
     dataset_path = Path(__file__).parent / "datasets" / "slakh_like"
     dataset_out = OUT_TEST_DIR / "compiled" / test_name

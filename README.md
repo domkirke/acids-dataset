@@ -1,5 +1,7 @@
 # acids-dataset
 
+**Warning** `acids-dataset` is still experimental, do not hesitate to add issues! 
+
 `acids-dataset` is a preprocessing package for audio data and metadata, mostly used by [RAVE](http://github.com/acids-ircam/RAVE) and [AFTER](http://github.com/acids-ircam/AFTER) but opened for custom use. Built open [lmdb](https://openldap.org/), it leverages the pre-processing step of data parsing required by audio generative models to extract metadata and audio features that can be accessed and used during training. It brings : 
 - Conveninent pre-processing pipelines allowing to easily select / discard files, extract metadata with features of from filenames, and metadata hashing
 - Data augmentations tailored for audio with probablities
@@ -11,6 +13,9 @@ To install acids-dataset, just install it through pip.
 ```bash
 pip install acids-dataset
 ```
+
+Some dependencies also have to be installed manually for some features. 
+- Metadata clustering uses [faiss](https://github.com/facebookresearch/faiss/), as you need to choose between `faiss-cpu` or `faiss-gpu`
 
 # Usage
 

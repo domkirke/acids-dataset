@@ -1,11 +1,13 @@
 import torch
+from types import EllipsisType
+import random
 from math import ceil
 import os
 import random, math, itertools
 from collections import deque
 import copy
 from typing import Optional, List , Dict, Iterable
-from .. import writers
+from ..utils import checklist
 from .. import transforms, get_writer_class_from_path, get_metadata_from_path
 from .utils import _outs_from_pattern, _transform_outputs
 
@@ -29,8 +31,8 @@ class AudioDataset(torch.utils.data.Dataset):
         self._db_path = db_path
         if lazy_import or lazy_paths:
             raise NotImplementedError()
-        self._loader = getattr(writers, get_writer_class_from_path(db_path).loader)(self._db_path, 
-                                                                                    output_type="torch") 
+        self._loader = get_writer_class_from_path(db_path).loader(self._db_path, 
+                                                                  output_type="torch") 
         self._metadata = get_metadata_from_path(db_path)
         self._output_pattern = output_pattern
         self._transforms = _parse_transforms_with_pattern(transforms, self._output_pattern)
@@ -44,12 +46,7 @@ class AudioDataset(torch.utils.data.Dataset):
         super(AudioDataset, self).__init__()
 
     def __getitem__(self, index):
-        if self._subindices is not None:
-            index = self._subindices[index]
-        fg = self._loader[index]
-        outs = _outs_from_pattern(fg, self.output_pattern)
-        outs = _transform_outputs(outs, self.transforms, self._n_channels)
-        return outs
+        return self.get(index)
     
     def __len__(self):
         if self._subindices is None:
@@ -68,6 +65,10 @@ class AudioDataset(torch.utils.data.Dataset):
     @property 
     def metadata(self):
         return copy.copy(self._metadata)
+
+    @property
+    def loader(self): 
+        return self._loader
 
     @property
     def is_partition(self):
@@ -98,6 +99,8 @@ class AudioDataset(torch.utils.data.Dataset):
     @property
     def keys(self) -> List[str]:
         return list(self._loader.iter_fragment_keys())
+
+    # split functions
 
     def get_subdataset(self, subindices, check=False):
         if check: 
@@ -227,5 +230,50 @@ class AudioDataset(torch.utils.data.Dataset):
                 subindices = subindices.split(',')
                 partitions[name] = self.get_subdataset(subindices, check)
         return partitions
+
+    def index_for_features(self, **kwargs): 
+        for feature_name, feature_value in kwargs.items(): 
+            assert feature_name in self._loader.feature_hash
+            for v in checklist(feature_value): 
+                hash_tmp = self._loader.feature_hash[feature_name].get(v)
+                if hash_tmp is None: raise IndexError("could not find value %d for feature %s"%(v, feature_name))
+                if len(idx_dict) == 0: 
+                    idx_dict[(v,)] = set(hash_tmp)
+                else:
+                    new_idx_dict = {}
+                    for kk, vv in idx_dict.items(): 
+                        new_idx_dict[kk + (v,)] = vv.intersection(hash_tmp)
+                    idx_dict = new_idx_dict
+        return idx_dict
                         
+    # index functions
+    def get(self, index, output_pattern=None, transforms=None):
+        output_pattern = output_pattern or self.output_pattern
+        transforms = transforms or self.transforms
+        if self._subindices is not None:
+            index = self._subindices[index]
+        fg = self._loader[index]
+        outs = _outs_from_pattern(fg, output_pattern)
+        outs = _transform_outputs(outs, self.transforms, self._n_channels)
+        return outs
+
+    def query_from_features(self, n: int | EllipsisType, _random: bool = True, **kwargs):
+        assert isinstance(n, (int, ellipsis)), "n must be either an int or Ellipsis"
+        idx_dict = self.index_for_features
+        data_dict = {}
+        for k, v in idx_dict.items(): 
+            idx_dict[k] = list(v)
+            if n != Ellipsis: 
+                if _random: 
+                    idx_dict[k] = random.choices(idx_dict[k], k=n)
+                else:
+                    idx_dict[k] = v[:n]
+            data_dict[k] = [self[i] for i in idx_dict[k]]
+        
+        return data_dict 
+        
+                    
+
+
+            
 

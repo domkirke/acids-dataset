@@ -31,7 +31,8 @@ class AcidsDatasetFeature(object):
             self, 
             name: Optional[str] = None,
             hash_from_feature: Optional[Callable] = None, 
-            device: torch.device = None
+            device: torch.device = None, 
+            metadata = {}
         ):
         self.feature_name = name or self.default_feature_name
         self.hash_from_feature = hash_from_feature or getattr(type(self), "hash_from_feature", None)
@@ -39,6 +40,7 @@ class AcidsDatasetFeature(object):
         if self.hash_from_feature is not None: 
             self.has_hash = True
         self.to(device)
+        self.metadata = metadata
 
     def to(self, device = None):
         if device is None: 
