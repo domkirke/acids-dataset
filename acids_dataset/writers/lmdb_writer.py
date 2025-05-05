@@ -23,6 +23,7 @@ non_buffer_keys = ['feature_hash', 'features', 'keygen']
 @gin.configurable(module="writer")
 class LMDBWriter(object):
     KeyGenerator = KeyIterator 
+    _default_max_db_size = 100
     def __init__(
         self, 
         dataset_path: str | Path, 
@@ -31,7 +32,7 @@ class LMDBWriter(object):
         features: List[AcidsDatasetFeature] | None = None, 
         dir_parser: Callable = audio_paths_from_dir,
         parser: str | object = RawParser, 
-        max_db_size: int | float | None = 100, 
+        max_db_size: int | float | None = None, 
         valid_exts: List[str] | None = None,
         filters: List[str] = [], 
         exclude: List[str] = [],
@@ -76,11 +77,11 @@ class LMDBWriter(object):
         os.makedirs(self.output_path)
         # record parsers
         self.parser = parser
-        self.max_db_size = max_db_size
+        self.max_db_size = max_db_size or self._default_max_db_size
         if isinstance(fragment_class, str): fragment_class = get_fragment_class(fragment_class)
         self.fragment_class = fragment_class
         self.features = features or []
-        self.metadata = {'filters': filters, 'exclude': exclude}
+        self.metadata = {'filters': filters, 'exclude': exclude, 'max_db_size': self.max_db_size}
         self.waveform = waveform
         self.log = log
         if check:
@@ -406,42 +407,40 @@ class LMDBWriter(object):
         cls._close_features(features)
         
     @classmethod
-    def add_feature_hash(cls, path, feature, feature_hash, keygen=None):
+    def add_feature_hash(cls, path, feature, feature_hash, max_db_size = None, keygen=None):
         path = Path(path).resolve()
+        if max_db_size is None and (path/"metadata.yaml").exists():
+            with open(str(path/"metadata.yaml")) as f:
+                max_db_size = yaml.safe_load(f).get('max_db_size')
+        if max_db_size is None: max_db_size = cls._default_max_db_size
         assert path.exists(), f"preprocessed dataset {path} does not seem to exist."
         keygen = keygen or cls.KeyGenerator
 
-        # create env
-        env = lmdb.open(str(path))
-        f_key = keygen.from_str('feature')
+        env = lmdb.open(str(path), map_size=int(max_db_size * 1024 ** 3))
         fh_key = keygen.from_str('feature_hash')
         with env.begin(write=True) as txn:
-            original_feature = dill.load(txn.get(f_key))
-            # write feature hash
-            original_feature_hash = dill.load(txn.get(fh_key))
+            original_feature_hash = dill.loads(txn.get(fh_key))
             original_feature_hash[feature] = feature_hash
-            txn.put(fh_key, dill.dump(original_feature_hash))
+            txn.put(fh_key, dill.dumps(original_feature_hash))
 
     @classmethod
-    def append_to_feature_metadata(cls, path, feature, metadata, keygen=None):
+    def append_to_feature_metadata(cls, path, feature, metadata, max_db_size=None, keygen=None):
         path = Path(path).resolve()
         assert path.exists(), f"preprocessed dataset {path} does not seem to exist."
+        if max_db_size is None and (path/"metadata.yaml").exists():
+            with open(str(path/"metadata.yaml")) as f:
+                max_db_size = yaml.safe_load(f).get('max_db_size')
+        if max_db_size is None: max_db_size = cls._default_max_db_size
         keygen = keygen or cls.KeyGenerator
 
         # create env
-        env = lmdb.open(str(path))
-        f_key = keygen.from_str('feature')
+        env = lmdb.open(str(path), map_size=int(max_db_size * 1024 ** 3))
+        f_key = keygen.from_str("features")
         with env.begin(write=True) as txn:
-            original_feature = dill.load(txn.get(f_key))
+            original_feature = dill.loads(txn.get(f_key))[feature]
             original_feature.metadata.update(metadata)
             # write feature hash
-            txn.put(f_key, dill.dump(original_feature))
-    
-
-
-
-
-
+            txn.put(f_key, dill.dumps(original_feature))
 
 
 class LMDBLoader(object):
@@ -470,17 +469,18 @@ class LMDBLoader(object):
         self._database = self.open(db_path, readonly=True) 
         with self._database.begin() as txn:
             self._keys = list(filter(lambda x: x not in filter_keys, txn.cursor().iternext(values=False)))
-            self._features = list(dict(self.get_feature_hash(txn)).keys())
             self._length = len(self._keys)
             self._keygen = dill.loads(txn.get('keygen'.encode('utf-8')))
+            self._features = dill.loads(txn.get(self._keygen.from_str('features')))
 
     def __len__(self):
         return self._length
 
-    def __getitem__(self, idx: int | bytes):
+    def __getitem__(self, idx: int | str| bytes):
         if isinstance(idx, int):
             idx_key = self._keygen.from_int(idx)
-            idx_key = idx_key.encode('utf-8')
+        elif isinstance(idx, str):
+            idx_key = self._keygen.from_str(idx)
         else:
             assert isinstance(idx, bytes), "__getitem__ must be either int or bytes"
             idx_key = idx
@@ -494,8 +494,13 @@ class LMDBLoader(object):
     def get_key_from_idx(self, idx: int):
         return self._keys[idx]
 
-    def open(self, path, readonly=True, lock=False):
+    def open(self, path=None, readonly=True, lock=False):
+        if path is None: path = self._db_path
         return lmdb.open(str(path), lock=lock, readonly=readonly)
+
+    def update_database(self):
+        self._database.close()
+        self._database = self.open()
 
     @property
     def feature_hash(self):
@@ -521,12 +526,15 @@ class LMDBLoader(object):
         if txn is None: transaction.__exit__()
         return features 
 
-    def iter_fragment_keys(self, txn=None):
+    def iter_fragment_keys(self, as_bytes=True, txn=None):
         transaction = txn or self._database.begin()
         non_keys = list(map(self._keygen.from_str, non_buffer_keys))
         for key in transaction.cursor().iternext(values=False):
             if key not in non_keys:
-                yield key
+                if as_bytes:
+                    yield key
+                else:
+                    yield self._keygen.to_str(key)
         if txn is None: transaction.__exit__()
             
     def iter_fragments(self, txn: lmdb.Environment | None = None) -> Tuple[str, AudioFragment]:

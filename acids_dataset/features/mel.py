@@ -1,4 +1,5 @@
 import gin
+import numpy as np
 import torch
 from typing import Optional, Callable
 from torchaudio.transforms import MelSpectrogram
@@ -31,7 +32,9 @@ class Mel(AcidsDatasetFeature):
         return f"mel_{self.mel_spectrogram.n_mels}"
 
     def from_fragment(self, fragment, write: bool = True):
-        data = torch.from_numpy(fragment.raw_audio).float()
+        data = fragment.get_audio("waveform")
+        if isinstance(data, np.ndarray):
+            data = torch.from_numpy(data).float()
         try: 
             mels = self.mel_spectrogram(data)
         except RuntimeError:

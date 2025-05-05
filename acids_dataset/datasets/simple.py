@@ -22,6 +22,7 @@ class AudioDataset(torch.utils.data.Dataset):
                  db_path: str,
                  transforms: TransformType = None, 
                  output_pattern: str = 'waveform',
+                 output_type: str = "torch",
                  channels: int = 1, 
                  lazy_import: bool = False, 
                  lazy_paths: str = False,
@@ -31,8 +32,7 @@ class AudioDataset(torch.utils.data.Dataset):
         self._db_path = db_path
         if lazy_import or lazy_paths:
             raise NotImplementedError()
-        self._loader = get_writer_class_from_path(db_path).loader(self._db_path, 
-                                                                  output_type="torch") 
+        self._loader = get_writer_class_from_path(db_path).loader(self._db_path, output_type=output_type) 
         self._metadata = get_metadata_from_path(db_path)
         self._output_pattern = output_pattern
         self._transforms = _parse_transforms_with_pattern(transforms, self._output_pattern)
@@ -53,6 +53,10 @@ class AudioDataset(torch.utils.data.Dataset):
             return len(self._loader)
         else:
             return len(self._subindices)
+
+    @property
+    def path(self):
+        return str(self._db_path)
 
     @property 
     def parent(self):
@@ -92,13 +96,17 @@ class AudioDataset(torch.utils.data.Dataset):
     def features(self) :
         return self._loader._features
 
+    @property
+    def feature_hash(self): 
+        return self._loader.feature_hash
+
     @transforms.setter
     def transforms(self, transforms):
         self._transforms = _parse_transforms_with_pattern(transforms, self._output_pattern)
 
     @property
     def keys(self) -> List[str]:
-        return list(self._loader.iter_fragment_keys())
+        return list(self._loader.iter_fragment_keys(as_bytes=False))
 
     # split functions
 
@@ -231,20 +239,6 @@ class AudioDataset(torch.utils.data.Dataset):
                 partitions[name] = self.get_subdataset(subindices, check)
         return partitions
 
-    def index_for_features(self, **kwargs): 
-        for feature_name, feature_value in kwargs.items(): 
-            assert feature_name in self._loader.feature_hash
-            for v in checklist(feature_value): 
-                hash_tmp = self._loader.feature_hash[feature_name].get(v)
-                if hash_tmp is None: raise IndexError("could not find value %d for feature %s"%(v, feature_name))
-                if len(idx_dict) == 0: 
-                    idx_dict[(v,)] = set(hash_tmp)
-                else:
-                    new_idx_dict = {}
-                    for kk, vv in idx_dict.items(): 
-                        new_idx_dict[kk + (v,)] = vv.intersection(hash_tmp)
-                    idx_dict = new_idx_dict
-        return idx_dict
                         
     # index functions
     def get(self, index, output_pattern=None, transforms=None):
@@ -256,10 +250,26 @@ class AudioDataset(torch.utils.data.Dataset):
         outs = _outs_from_pattern(fg, output_pattern)
         outs = _transform_outputs(outs, self.transforms, self._n_channels)
         return outs
+    
+    def index_for_features(self, **kwargs): 
+        idx_dict = {}
+        for feature_name, feature_value in kwargs.items(): 
+            assert feature_name in self._loader.feature_hash
+            for v in checklist(feature_value): 
+                hash_tmp = self._loader.feature_hash[feature_name].get(v)
+                if hash_tmp is None or len(hash_tmp) == 0: raise IndexError("could not find value %d for feature %s"%(v, feature_name))
+                if len(idx_dict) == 0: 
+                    idx_dict[(v,)] = set(hash_tmp)
+                else:
+                    new_idx_dict = {}
+                    for kk, vv in idx_dict.items(): 
+                        new_idx_dict[kk + (v,)] = vv.intersection(hash_tmp)
+                    idx_dict = new_idx_dict
+        return idx_dict
 
     def query_from_features(self, n: int | EllipsisType, _random: bool = True, **kwargs):
-        assert isinstance(n, (int, ellipsis)), "n must be either an int or Ellipsis"
-        idx_dict = self.index_for_features
+        assert isinstance(n, (int, EllipsisType)), "n must be either an int or Ellipsis"
+        idx_dict = self.index_for_features(**kwargs)
         data_dict = {}
         for k, v in idx_dict.items(): 
             idx_dict[k] = list(v)

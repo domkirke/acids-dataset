@@ -158,7 +158,7 @@ def test_module(config, dataset, feature_path, feature_config, test_name, test_k
 @pytest.mark.parametrize('config', ['default.gin'])
 @pytest.mark.parametrize("dataset", ['simple'])
 @pytest.mark.parametrize('feature_path,feature_config', get_feature_configs('mel'))
-def test_feature_clustering(config, dataset, feature_path, feature_config, test_name, test_k=10):
+def test_feature_clustering(config, dataset, feature_path, feature_config, test_name, n_clusters = 3, test_k=10):
     gin.add_config_file_search_path(feature_path)
     gin.parse_config_file(config)
     gin.parse_config_file(feature_config)
@@ -177,6 +177,10 @@ def test_feature_clustering(config, dataset, feature_path, feature_config, test_
 
     # hash from cluster
     dataset = AudioDataset(dataset_out)
-    kmeans = hash_from_clustering(mel_feature.feature_name, dataset, 3, verbose=True)
+    kmeans = hash_from_clustering(dataset, mel_feature.feature_name, n_clusters, pca_target_dim=0, write=True, verbose=True)
+    
+    for cluster_idx in range(n_clusters):
+        data = dataset.query_from_features(..., **{mel_feature.feature_name: cluster_idx})
+        data = dataset.query_from_features(..., **{mel_feature.feature_name: cluster_idx, "original_path": "simple_dataset/long/chord_tutti_simple_0.flac"})
 
 
