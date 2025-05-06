@@ -15,7 +15,7 @@ pip install acids-dataset
 ```
 
 Some dependencies also have to be installed manually for some features. 
-- Metadata clustering uses [faiss](https://github.com/facebookresearch/faiss/), as you need to choose between `faiss-cpu` or `faiss-gpu`
+- `F0` and `Pitch` has `yin` and `pyin` methods installed  through `librosa`, but can also have `crepe`, `pesto`, `world`, or `praat` by installing libraries (respectively) [torchcrepe](https://github.com/maxrmorrison/torchcrepe), [pesto-pitch](https://github.com/SonyCSLParis/pesto), [pyworld](https://github.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder), or [praat-parselmouth](https://parselmouth.readthedocs.io/en/stable/index.html#).
 
 # Usage
 

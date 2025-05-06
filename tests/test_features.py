@@ -1,13 +1,15 @@
 import pytest
+import torch, torchaudio
+import random
 import os
 from pathlib import Path
 import shutil
 import gin
-from . import OUT_TEST_DIR, test_name, get_feature_configs
+from . import OUT_TEST_DIR, test_name, get_feature_configs, CURRENT_TEST_DIR
 import lmdb, random
 from .datasets import get_available_datasets, get_dataset
 
-from acids_dataset import get_fragment_class
+from acids_dataset import get_fragment_class, feature_from_gin_config
 from acids_dataset.datasets import AudioDataset
 from acids_dataset.utils import set_gin_constant, feature_from_gin_config
 from acids_dataset.writers import LMDBWriter, read_metadata
@@ -183,4 +185,34 @@ def test_feature_clustering(config, dataset, feature_path, feature_config, test_
         data = dataset.query_from_features(..., **{mel_feature.feature_name: cluster_idx})
         data = dataset.query_from_features(..., **{mel_feature.feature_name: cluster_idx, "original_path": "simple_dataset/long/chord_tutti_simple_0.flac"})
 
+from acids_dataset.features.pitch import _AD_F0_METHODS
 
+def make_sin_dataset(target_dir, n_examples, duration = 4.0, fs=44100):
+    os.makedirs(target_dir)
+    freqs = [random.randrange(60, 880) for n in range(n_examples)]
+    for f in freqs:
+        t = torch.arange(int(duration * fs))
+        x = 0.8 * torch.sin(2 * torch.pi * f * t / fs + random.random() * 2 * torch.pi)
+        torchaudio.save(str(target_dir / ("sin_%d.wav"%f)), x[None], sample_rate=44100)
+
+@pytest.mark.parametrize("pitch_method", _AD_F0_METHODS)
+def test_pitch_features(pitch_method, test_name, n_examples = 20): 
+    gin.parse_config_file("default.gin")
+    set_gin_constant('SAMPLE_RATE', 44100)
+    set_gin_constant('CHANNELS', 1)
+    set_gin_constant('DEVICE', "cpu")
+    set_gin_constant('CHUNK_LENGTH', 44100)
+    
+    dataset_dir = CURRENT_TEST_DIR / "datasets" / "sin_dataset"
+
+    if not dataset_dir.exists():
+        make_sin_dataset(dataset_dir, n_examples)
+    
+    features = [f'f0_{pitch_method}.gin', f'pitch_{pitch_method}.gin']
+    feature_list = []
+    for f in features: 
+        feature_list.extend(feature_from_gin_config(f))
+
+    dataset_out = OUT_TEST_DIR / "compiled" / test_name 
+    writer = LMDBWriter(dataset_dir, dataset_out, features=feature_list, force=True)
+    writer.build()

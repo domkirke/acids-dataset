@@ -11,7 +11,7 @@ import torch
 import torchaudio
 import gin
 
-
+from . import FEATURES_GIN_PATH
 
 _CACHED_MODULES = {}
 _VALID_BACKENDS = ['numpy', 'torch', 'jax']
@@ -125,15 +125,20 @@ def get_random_hash(n=8):
     return "".join([chr(random.randrange(97,122)) for i in range(n)])
 
 
-@gin.configurable()
+@gin.configurable(module="features")
 def parse_features(features=None, device=None):
     if features is None: 
         return []
     else:
-        return [f(device=device) for f in checklist(features)]
+        if device is not None: 
+            set_gin_constant("DEVICE", device)
+        return [f() for f in checklist(features)]
 
 def feature_from_gin_config(config_path):
-    with GinEnv(configs=config_path):
+    config_path = checklist(config_path)
+    for i in range(len(config_path)):
+        if not os.path.splitext(config_path[i])[1] == ".gin": config_path[i] += ".gin"
+    with GinEnv(configs=config_path, paths=FEATURES_GIN_PATH):
         feature = parse_features()
     return feature
 
@@ -258,3 +263,36 @@ def set_gin_constant(constant, value):
         gin.config._CONSTANTS[constant] = value
     else:
         gin.constant(constant, value)
+
+
+def parse_config_pattern(pattern: str, **kwargs):
+    for kwname, kwvalue in kwargs.items():
+        kwname = kwname.upper()
+        pattern = pattern.replace("{{%s}}"%kwname, kwvalue)
+    return pattern
+
+def generate_config_from_obj(transform_class, config_path, pattern):
+    gin_args = []
+    transform_args = dict(transform_class.init_signature().parameters)
+    for param_name, param in transform_args.items():
+        if param_name in transform_class.dont_export_to_gin_config: continue
+        if param_name == "sr": 
+            gin_args.append("sr = %SAMPLE_RATE")
+        else:
+            default = param._default
+            if (param._default == inspect._empty): 
+                continue
+            if isinstance(param._default, str): 
+                default = f"\"{default}\""
+            gin_args.append(f"{param_name} = {default}")
+    gin_args = "\n\t".join(gin_args)
+    gin_out = parse_config_pattern(pattern, name=transform_class.__name__, args=gin_args)
+    with open(config_path, "w+") as f: 
+        f.write(gin_out)
+
+def apply_nested(func, nested):
+    if isinstance(nested, list) or isinstance(nested, tuple):
+        return type(nested)(apply_nested(func, x) for x in nested)
+    else:
+        return func(nested)
+    

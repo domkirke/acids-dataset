@@ -1,3 +1,7 @@
-parse_features:
+
+Loudness:
+	device=%DEVICE
+	sr = %SAMPLE_RATE
+
+features.parse_features:
     features = @features.Loudness
-    device = %DEVICE

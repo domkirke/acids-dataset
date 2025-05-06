@@ -7,7 +7,7 @@ import inspect
 import numpy as np
 import torch
 from enum import Enum
-from ..utils import get_subclasses_from_package
+from ..utils import get_subclasses_from_package, generate_config_from_obj
 
 
 gin_config_pattern = """
@@ -48,34 +48,12 @@ default_cast_table = {
 
 
 gin_config_pattern = """
-%s:
-\t%s
+{{NAME}}:
+\t{{ARGS}}
 
 transforms.parse_transform:
-    transform = @transforms.%s()
+    transform = @transforms.{{NAME}}
 """
-
-
-def generate_config_from_transform(transform_class, config_path):
-    gin_name = f"transforms.{transform_class.__name__}"
-    gin_args = []
-    transform_args = dict(transform_class.init_signature().parameters)
-    for param_name, param in transform_args.items():
-        if param_name in transform_class.dont_export_to_gin_config: continue
-        if param_name == "sr": 
-            gin_args.append("sr = %SAMPLE_RATE")
-        else:
-            default = param._default
-            if (param._default == inspect._empty): 
-                continue
-            if isinstance(param._default, str): 
-                default = f"\"{default}\""
-            gin_args.append(f"{param_name} = {default}")
-    gin_args = "\n\t".join(gin_args)
-    gin_out = gin_config_pattern%(gin_name, gin_args, transform_class.__name__)
-    with open(config_path, "w+") as f: 
-        f.write(gin_out)
-
 
 def check_transform_configs(module, path):
     transform_class = getattr(module, "Transform")
@@ -86,7 +64,7 @@ def check_transform_configs(module, path):
         gin_config_name = transform.__name__.lower() + ".gin"
         gin_config_path = (path / gin_config_name).resolve()
         if not gin_config_path.exists():
-            generate_config_from_transform(transform, gin_config_path)
+            generate_config_from_obj(transform, gin_config_path, gin_config_pattern)
         
 
 class Transform():

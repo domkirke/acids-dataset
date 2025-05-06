@@ -65,7 +65,7 @@ class LMDBWriter(object):
         """
 
         # parse dataset
-        self.dataset_path = list(map(Path, checklist(dataset_path)))
+        self.dataset_path = list(map(lambda x: Path(x).resolve(), checklist(dataset_path)))
         self._parse_dataset(dir_parser, valid_exts, filters, exclude)
         # create output
         self.output_path = Path(output_path).resolve()

@@ -1,9 +1,12 @@
 from typing import Optional, Callable, Any
+from types import MethodType
+import inspect
+import os
 import torch
 import torchaudio
 from collections import UserDict
 from absl import logging
-from ..utils import load_file, get_default_accelerated_device
+from ..utils import load_file, get_default_accelerated_device, get_subclasses_from_package, generate_config_from_obj, parse_config_pattern
 
 class FeatureException(Exception):
     pass
@@ -23,10 +26,21 @@ class FileHash(UserDict):
         return super().__setitem__(key, item)
 
 
+
+default_feature_pattern = """
+{{NAME}}:
+\tdevice=%DEVICE
+\t{{ARGS}}
+
+features.parse_features:
+    features = @features.{{NAME}}
+"""
+
 class AcidsDatasetFeature(object):
     # denylist = ['audio_path', 'audio_data', 'sr', 'start', 'end', 'duration']
     denylist = []
     has_hash = False
+    dont_export_to_gin_config = ["self", "name", "args", "kwargs", "hash_from_feature", "device", "metadata"]
     def __init__(
             self, 
             name: Optional[str] = None,
@@ -35,12 +49,22 @@ class AcidsDatasetFeature(object):
             metadata = {}
         ):
         self.feature_name = name or self.default_feature_name
-        self.hash_from_feature = hash_from_feature or getattr(type(self), "hash_from_feature", None)
-        self.device = device
-        if self.hash_from_feature is not None: 
+        # init hash function
+        if hash_from_feature:
+            self.hash_from_feature = MethodType(hash_from_feature, self)
+        elif not hasattr(self, "hash_from_feature"):
+            self.hash_from_feature = None
+        if self.hash_from_feature is not None and not hasattr(self, "has_hash"):
             self.has_hash = True
-        self.to(device)
+        # metadata (for retaining clustering, or whatever)
         self.metadata = metadata
+        # device handling
+        self.device = device
+        self.to(device)
+
+    @classmethod
+    def init_signature(cls): 
+        return inspect.signature(cls.__init__)
 
     def to(self, device = None):
         if device is None: 
@@ -86,6 +110,15 @@ class AcidsDatasetFeature(object):
     def from_fragment(self, fragment, write: bool = None):
         raise NotImplementedError()
 
+    @classmethod
+    def write_gin_config(cls, config_path, config = None):
+        if config is None: 
+            generate_config_from_obj(cls, config_path, default_feature_pattern)
+        else:
+            config = parse_config_pattern(config, name=cls.__name__)
+            with open(config_path, "w+") as f: 
+                f.write(config)
+
     def extract(self, fragment=None, current_key = None, feature_hash = None):
         if fragment is not None:
             meta = self.from_fragment(fragment)
@@ -98,3 +131,20 @@ class AcidsDatasetFeature(object):
                 meta_hash = meta
             feature_hash[self.feature_name][meta_hash].append(current_key)
         return meta
+
+
+def check_feature_configs(module, path):
+    feature_class = getattr(module, "AcidsDatasetFeature")
+    feature_subclasses = get_subclasses_from_package(module, feature_class)
+    os.makedirs(path, exist_ok=True)
+    for feature in feature_subclasses:
+        if feature == feature_class: continue
+        gin_config_name = feature.__name__.lower()
+        if hasattr(feature, "gin_configs"):
+            for config_name, config_str in feature.gin_configs.items(): 
+                gin_config_path = (path / (gin_config_name + f"_{config_name}.gin")).resolve()
+                feature.write_gin_config(gin_config_path, config_str)
+        else:
+            gin_config_path = (path / (gin_config_name + ".gin")).resolve()
+            if not gin_config_path.exists():
+                feature.write_gin_config(gin_config_path)

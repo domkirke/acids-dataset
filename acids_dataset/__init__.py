@@ -5,6 +5,8 @@ gin.enter_interactive_mode()
 
 ACIDS_DATASET_CONFIG_PATH = Path(__file__).parent / "configs"
 ACIDS_DATASET_CUSTOM_CONFIG_PATH = Path(__file__).parent.parent / "custom_configs"
+TRANSFORM_GIN_PATH = ACIDS_DATASET_CONFIG_PATH / "transforms"
+FEATURES_GIN_PATH = ACIDS_DATASET_CONFIG_PATH / "features"
 
 def import_database_configs():
     gin.add_config_file_search_path(ACIDS_DATASET_CONFIG_PATH)
@@ -13,13 +15,17 @@ def import_database_configs():
 from . import utils
 from . import transforms
 
-TRANSFORM_GIN_PATH = Path(__file__).parent / "configs" / "transforms"
 transforms.check_transform_configs(transforms, TRANSFORM_GIN_PATH)
 def get_transform_config_path(): 
     return TRANSFORM_GIN_PATH
 
 from . import parsers
 from . import features
+
+features.check_feature_configs(features, FEATURES_GIN_PATH)
+def get_feature_config_path(): 
+    return FEATURES_GIN_PATH
+
 from . import fragments
 
 def get_fragment_class(class_name):
