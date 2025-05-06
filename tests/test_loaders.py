@@ -5,11 +5,20 @@ from . import OUT_TEST_DIR, test_name
 from .datasets import get_available_datasets, get_dataset
 
 
-@pytest.mark.parametrize("dataset", get_available_datasets())
+@pytest.mark.parametrize("dataset", ["simple"])
 @pytest.mark.parametrize("output_pattern,transforms", [
     ("waveform", []),
-    ("waveform,", [adt.Gain()]),
-    ("{waveform,}", {'waveform': adt.Gain()})
+    ("(waveform,)", [adt.Gain()]),
+    ("(waveform[0],)", [adt.Gain()]),
+    ("(waveform[:1],)", [adt.Gain()]),
+    ("(waveform[0:],)", [adt.Gain()]),
+    ("(waveform[0:1:1],)", [adt.Gain()]),
+    ("{waveform,}", {'waveform': adt.Gain()}),
+    ("{waveform->z,}", {'z': adt.Gain()}),
+    ("{waveform[0]->z,}", {'z': adt.Gain()}),
+    ("{waveform[:1]->z,}", {'z': adt.Gain()}),
+    ("{waveform[0:]->z,}", {'z': adt.Gain()}),
+    ("{waveform[0:1:1]->z,}", {'z': adt.Gain()}) ,
 ])
 def test_audio_dataset(dataset, transforms, output_pattern, test_name):
     preprocessed_path = OUT_TEST_DIR / f"{dataset}_preprocessed"

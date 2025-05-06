@@ -25,16 +25,54 @@ def _outs_from_pattern(fragment, output_pattern):
     re_result = re.match(r'^(\w+)$', output_pattern)
     if re_result is not None:
         return _from_fragment(fragment, output_pattern)
-    re_result = re.match(r'^\(?([\w\,\:]+)\)?$', output_pattern)
+    re_result = re.match(r'^\(?([\w\,\:\[\]\d]+)\)?$', output_pattern)
     if re_result is not None:
         items = list(filter(lambda x: x != "", re_result.groups()[0].split(',')))
-        items = [_from_fragment(fragment, i) for i in items]
-        return tuple(items)
-    re_result = re.match(r'^\{([\w\,\:]+)\}$', output_pattern)
+        item_parsed = []
+        for i in items:
+            entry = i
+            re_result = re.match(r"^(\S+)\[([\d\:]+)\]$", entry)
+            if re_result is not None: 
+                entry, subidx = re_result.groups()
+                if ":" in subidx: 
+                    subidx = slice(*map(lambda x: int(x) if x != "" else None, subidx.split(":")))
+                else:
+                    subidx = int(subidx)
+            else:
+                subidx = None
+            out = _from_fragment(fragment, entry)
+            if subidx is not None: 
+                out = out[subidx]
+            item_parsed.append(out)
+        return tuple(item_parsed)
+    re_result = re.match(r'^\{([\w\,\:\[\]\d\-\>]+)\}$', output_pattern)
     if re_result is not None:
         items = list(filter(lambda x: x != "", re_result.groups()[0].split(',')))
-        items = {i: _from_fragment(fragment, i) for i in items}
-        return items
+        items_parsed = {}
+        for i in items:
+            entry = i
+            alias = i 
+            out = None
+            
+            if ('->' in i):
+                if len(i.split('->')) == 2:
+                    entry, alias = i.split('->')
+                else:
+                    raise ValueError('output_pattern %s is wrong: only one alias (aka ->) is supported'%output_pattern)
+            re_result = re.match(r"^(\S+)\[([\d\:]+)\]$", entry)
+            if re_result is not None: 
+                entry, subidx = re_result.groups()
+                if ":" in subidx: 
+                    subidx = slice(*map(lambda x: int(x) if x != "" else None, subidx.split(":")))
+                else:
+                    subidx = int(subidx)
+            else:
+                subidx = None
+            out = _from_fragment(fragment, entry)
+            if subidx is not None: 
+                out = out[subidx]
+            items_parsed[alias] = out
+        return items_parsed
 
 def _check_channels(out, n_channels = None):
     if out.ndim == 1: 
@@ -51,10 +89,11 @@ def _check_channels(out, n_channels = None):
 
 def _transform_outputs(outs, transforms, n_channels=None):
     if isinstance(outs, (list, tuple)):
-        outs = list(*outs)
+        outs = list(outs)
         assert isinstance(transforms, (tuple, list))
         for i, t in enumerate(transforms):
             outs[i] = t(_check_channels(outs[i], n_channels))
+        return tuple(outs)
     elif isinstance(outs, dict):
         assert isinstance(transforms, dict)
         for k, t in transforms.items():

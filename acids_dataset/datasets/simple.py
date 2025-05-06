@@ -28,6 +28,7 @@ class AudioDataset(torch.utils.data.Dataset):
                  lazy_paths: str = False,
                  subindices: Iterable[int] | Iterable[bytes] | None = None,
                  parent = None,
+                 max_samples: int | None = None,
                  **kwargs) -> None:
         self._db_path = db_path
         if lazy_import or lazy_paths:
@@ -41,6 +42,7 @@ class AudioDataset(torch.utils.data.Dataset):
         self._parent = None
         self._partitions = {}
         self._index_mapper = lambda x: x
+        self._max_samples = max_samples
         if parent:
             self.parent = parent
         super(AudioDataset, self).__init__()
@@ -53,6 +55,10 @@ class AudioDataset(torch.utils.data.Dataset):
             return len(self._loader)
         else:
             return len(self._subindices)
+
+    def get_sampler(self, replacement=False, max_samples=None): 
+        max_samples = max_samples or self._max_samples or len(self)
+        return torch.utils.data.RandomSampler(self, replacement=replacement, num_samples = max_samples)
 
     @property
     def path(self):
@@ -94,7 +100,7 @@ class AudioDataset(torch.utils.data.Dataset):
 
     @property
     def features(self) :
-        return self._loader._features
+        return self._loader.features
 
     @property
     def feature_hash(self): 

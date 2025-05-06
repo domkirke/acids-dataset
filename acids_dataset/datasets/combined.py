@@ -2,6 +2,7 @@ from typing import List
 import bisect
 import math
 import copy
+from absl import logging
 import torch
 from functools import reduce
 from .simple import AudioDataset
@@ -13,7 +14,7 @@ def cumsum(l):
 
 class CombinedAudioDataset(torch.utils.data.Dataset):
     _fields_to_compare_ = ['_output_pattern', '_n_channels']
-    def __init__(self, datasets: List[AudioDataset], weights: List[float] | None = None):
+    def __init__(self, datasets: List[AudioDataset], weights: List[float] | None = None, max_samples: int | None = None, use_cache: bool = False):
         assert len(datasets) > 1, "CombinedAudioDataset must have at least 2 datasets as inputs"
         self._compare_datasets(datasets)
         if weights is None: 
@@ -26,7 +27,9 @@ class CombinedAudioDataset(torch.utils.data.Dataset):
         self._n_channels = self._datasets[0]._n_channels
         self._parent = None
         self._subindices = None
+        self._max_samples = max_samples
         self._partitions = {}
+        if use_cache: logging.warning("use_cache is not implemented yet in CombinedAudioDataset")
 
     def _compare_datasets(self, datasets):
         for field in self._fields_to_compare_:
@@ -47,12 +50,13 @@ class CombinedAudioDataset(torch.utils.data.Dataset):
         else:
             return sum([len(s) for s in self._subindices])
 
-    def get_weighted_sampler(self, valid: bool = False, replacement: bool = False):
+    def get_sampler(self, valid: bool = False, replacement: bool = False):
+        max_samples = len(self) if self._max_samples is None else self._max_samples
         weights = sum([[self._weights[i]] * len(self._datasets[i]) for i in range(len(self._datasets))], [])
         if valid:
-            return torch.utils.data.WeightedRandomSampler(weights, len(self), replacement=replacement)
+            return torch.utils.data.WeightedRandomSampler(weights, max_samples, replacement=replacement)
         else: 
-            return torch.utils.data.WeightedRandomSampler(weights, len(self), replacement=replacement, generator=torch.Generator().manual_seed(42))
+            return torch.utils.data.WeightedRandomSampler(weights, max_samples, replacement=replacement, generator=torch.Generator().manual_seed(42))
 
     @property 
     def parent(self):
@@ -72,12 +76,13 @@ class CombinedAudioDataset(torch.utils.data.Dataset):
         subdataset._subindices = subindices
         subdataset._dataset_map = cumsum([len(d) for d in subdataset._subindices])
         subdataset.parent = self
+        subdataset._max_samples = int(self._max_samples * (len(subindices) / len(self)))
         return subdataset
 
     def _check_feature_in_subdatasets(self, features):
         for f in checklist(features): 
             for i, d in enumerate(self._datasets):
-                assert f in d.features, "feature %s not present in dataset %d (path : %s)"%(f, i, d._db_path)
+                assert f in d.features or f == "original_path", "feature %s not present in dataset %d (path : %s)"%(f, i, d._db_path)
 
     def split(self, 
             partitions, 

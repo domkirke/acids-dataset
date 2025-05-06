@@ -354,6 +354,8 @@ class LMDBWriter(object):
             feature_hash = cls.get_feature_hash(txn)
 
             if len(features) > 0:
+                for f in features: 
+                    feature_hash[f.feature_name] = {}
                 for key in cls.iter_fragment_keys(txn):
                     fragment = fragment_class(txn.get(key))
                     cls._extract_features(fragment, features, key, feature_hash, overwrite=overwrite)

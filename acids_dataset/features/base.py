@@ -139,7 +139,10 @@ class AcidsDatasetFeature(object):
                 meta_hash = self.hash_from_feature(meta)
             else:
                 meta_hash = meta
-            feature_hash[self.feature_name][meta_hash].append(current_key)
+            if meta_hash not in feature_hash[self.feature_name]:
+                feature_hash[self.feature_name][meta_hash] = [current_key]
+            else:
+                feature_hash[self.feature_name][meta_hash].append(current_key)
         return meta
 
 
