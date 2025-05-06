@@ -189,12 +189,12 @@ class LMDBWriter(object):
                 for fragment in current_data:
                     current_key = next(key_generator)
                     n_seconds += float(fragment.get_metadata().get('length', '0'))
+                    feature_hash['original_path'][str(current_file)].append(current_key)
                     cls._extract_features(fragment, features, current_key, feature_hash)
                     txn.put(
                         current_key.encode(), 
                         fragment.serialize()
                     )
-                    feature_hash['original_path'][str(current_file)].append(current_key)
             except FileNotReadException: 
                 pass
         return n_seconds

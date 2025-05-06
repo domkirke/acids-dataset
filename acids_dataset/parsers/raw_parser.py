@@ -65,7 +65,7 @@ class TorchaudioBackend(object):
                         continue
                 fragment_audio_path = str(audio_path)
                 if dataset_path is not None:
-                    fragment_audio_path = Path(fragment_audio_path).resolve().parent.relative_to(dataset_path)
+                    fragment_audio_path = Path(fragment_audio_path).resolve().relative_to(dataset_path.parent)
                 current_fragment = fragment_class(
                         audio_path = fragment_audio_path, 
                         audio = wav[i] if waveform else None, 

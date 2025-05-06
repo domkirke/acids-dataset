@@ -18,4 +18,5 @@ nnaudio
 mir_eval
 resampy
 pretty_midi
+rotary_embedding_torch
 git+https://github.com/iver56/audiomentations/

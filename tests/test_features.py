@@ -13,7 +13,7 @@ from acids_dataset import get_fragment_class, feature_from_gin_config
 from acids_dataset.datasets import AudioDataset
 from acids_dataset.utils import set_gin_constant, feature_from_gin_config
 from acids_dataset.writers import LMDBWriter, read_metadata
-from acids_dataset.features import Mel, Loudness, AfterMIDI, hash_from_clustering
+from acids_dataset.features import Mel, Loudness, AfterMIDI, BeatTrack, hash_from_clustering
 
 from tests.module_tests import *
 
@@ -216,3 +216,39 @@ def test_pitch_features(pitch_method, test_name, n_examples = 20):
     dataset_out = OUT_TEST_DIR / "compiled" / test_name 
     writer = LMDBWriter(dataset_dir, dataset_out, features=feature_list, force=True)
     writer.build()
+
+    
+@pytest.mark.parametrize('config', ['default.gin'])
+@pytest.mark.parametrize("dataset", ['simple'])
+@pytest.mark.parametrize("module", [ConvEmbedding()])
+@pytest.mark.parametrize('feature_path,feature_config', get_feature_configs('beattrack'))
+def test_beat_tracking(config, dataset, module, feature_path, feature_config, test_name, test_k=10):
+    set_gin_constant('SAMPLE_RATE', 44100)
+    set_gin_constant('DEVICE', "cpu")
+    set_gin_constant('CHANNELS', 1)
+    gin.add_config_file_search_path(feature_path)
+    gin.parse_config_file(config)
+    gin.parse_config_file(feature_config)
+
+    dataset_path = get_dataset(dataset)
+    dataset_out = OUT_TEST_DIR / "compiled" / test_name
+    if dataset_out.exists():
+        shutil.rmtree(dataset_out.resolve())
+
+    beat_feature = BeatTrack(downsample=module.downsample)
+
+    # # build dataset
+    writer = LMDBWriter(dataset_path, dataset_out, features=[beat_feature])
+    writer.build()
+
+    env = lmdb.open(str(dataset_out), lock=False, readonly=True)
+    fragment_class = get_fragment_class(read_metadata(dataset_out)['fragment_class'])
+    with env.begin() as txn:
+        dataset_keys = list(txn.cursor().iternext(values=False))
+        # pick a random item
+        random_keys = random.choices(dataset_keys, k=test_k)
+        for key in random_keys:
+            ae = fragment_class(txn.get(key))
+            audio = ae.get_audio("waveform")
+            beat_clock = ae.get_array(beat_feature.feature_name)
+

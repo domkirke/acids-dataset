@@ -16,7 +16,8 @@ class ConvEmbedding(nn.Module):
     scripted_name = "conv_embedding.ts"
     def __init__(self):
         super().__init__()
-        self.conv_module = nn.Conv1d(1, 16, 11, stride=9)
+        self.downsample = 16
+        self.conv_module = nn.Conv1d(1, 16, 17, stride=self.downsample)
 
     @torch.jit.export 
     def get_embedding(self, x):

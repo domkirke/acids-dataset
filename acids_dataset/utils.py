@@ -248,9 +248,10 @@ def walk_modules(package):
             yield from walk_modules(submod)
 
 
-def get_subclasses_from_package(package, filter_class):
+def get_subclasses_from_package(package, filter_class, exclude = []):
     transform_list = []
     for mod in walk_modules(package):
+        if mod.__name__ in exclude: pass
         for name, obj in inspect.getmembers(mod):
             if isinstance(obj, type):
                 if issubclass(obj, filter_class) and (obj not in transform_list):

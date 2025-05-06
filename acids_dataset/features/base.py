@@ -11,15 +11,25 @@ from ..utils import load_file, get_default_accelerated_device, get_subclasses_fr
 class FeatureException(Exception):
     pass
 
-
+#TODO accelerate hashing with ordering
 class FileHash(UserDict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._idx = 0
 
+    def __contains__(self, key):
+        for i in self.data.keys():
+            if i.endswith(key): return True
+        return False
+
     @property
     def current_id(self):
         return int(self._idx)
+
+    def __getitem__(self, key):
+        for i in self.data.keys():
+            if i.endswith(key): return self.data[i]
+        return False
 
     def __setitem__(self, key: Any, item: Any) -> None:
         self._idx += 1
@@ -135,7 +145,7 @@ class AcidsDatasetFeature(object):
 
 def check_feature_configs(module, path):
     feature_class = getattr(module, "AcidsDatasetFeature")
-    feature_subclasses = get_subclasses_from_package(module, feature_class)
+    feature_subclasses = get_subclasses_from_package(module, feature_class, exclude=["beat_this"])
     os.makedirs(path, exist_ok=True)
     for feature in feature_subclasses:
         if feature == feature_class: continue
