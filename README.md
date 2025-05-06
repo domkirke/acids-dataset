@@ -207,7 +207,7 @@ All augmentations derived from a base class `Transform`, that is initialised wit
 
 Stochastic options of the base class are very powerful to develop versatile augmentation pipelines. For example : 
 
-```
+```python
 from acids_dataset import transforms as atf
 
 pipeline = atf.Compose([
@@ -220,7 +220,36 @@ pipeline = atf.Compose([
 performs random pitch shifting with probability 20%, random gain with probability 80%, random compression with probability 50%, and mutes random batches with probability 0.10% (very useful to force models to learn silence.) 
 
 
-## Data loaders
+## Indexing, partitioning, and sampling interface. 
+
+`acids_dataset` provides very powerful features to index / transform complex datasets, and provide easy way to perform multi-view indexing in a very simple way. 
+
+```python
+from acids_dataset import SimpleDataset, transforms as adt
+
+data_path = "..."
+dataset = SimpleDataset(data_path)
+dataset[0] # will provide automatically the "waveform" field as a single tensor
+dataset.get(0) # __getitem__ is a proxy for .get function, that's actually much more powerful
+dataset.get(0, "(waveform,mel)") # => returns both waveform and mel fields as a tuple
+dataset.get(0, "{waveform,mel}") # => returns both waveform and mel fields as a dictionary with waveform and mel keys
+dataset.get(0, "{waveform,mel->z}") # => same, but put mel vector in field "z"
+dataset.get(0, "{waveform[0]->x_l, waveform[1]->x_r}") # => puts first channel in x_l field, second in x_r field
+dataset.get(0, "(waveform,pitch)", [[], adt.OneHot(12)]) # => you can add also transforms
+dataset.get(0, "{waveform,pitch}", {'pitch': dt.OneHot(12)}) # => same with dict outputs
+
+# you can also specify that at initialisation
+dataset = SimpleDataset(data_path, output_pattern="{waveform->x,pitch->y}, transforms={"x": [], "y": adt.OneHot(12)})
+out = dataset[0] 
+```
+
+it also provides handy methods to retrive data from a given label : 
+```
+note_a_data = dataset.query_from_features(..., pitch='A') # retrieve all the data with 0 pitch class
+note_a_data = dataset.query_from_features(10, pitch='A') # retrieve 10 exemples with 0 pitch class
+note_a_data = dataset.(10, pitch='A', original_path=['file1.wav', 'file2.wav]) # retrieve 10 exemples with 0 pitch class in given data files
+```
+
 
 # Extending `acids-dataset`
 
