@@ -1,0 +1,15 @@
+
+features/ModuleEmbedding:
+    name = "conv_embedding"
+    module_path = "tests/scripted/conv_embedding.ts"
+    method = "get_embedding"
+    transforms = [
+        @transforms.Gain, 
+        @transforms.PitchShift
+    ]
+    sr = %SAMPLE_RATE
+
+parse_features:
+    features = [@features/features.ModuleEmbedding]
+    device = %DEVICE
+
