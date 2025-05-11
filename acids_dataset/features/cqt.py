@@ -38,9 +38,9 @@ class CQT(AcidsDatasetFeature):
             sr: int = 44100, 
             **kwargs
     ):
-        super().__init__(name=name, sr=sr, hash_from_feature=hash_from_feature, device=device)
-        self.cqt = librosa.cqt(**kwargs, sample_rate=sr)
+        self.cqt = librosa.cqt
         self.kwargs = kwargs
+        super().__init__(name=name, hash_from_feature=hash_from_feature, device=device)
 
     def __repr__(self):
         kwargs_repr = ", ".join([f"{a}={b}" for a, b in self.kwargs.items()])
@@ -52,12 +52,13 @@ class CQT(AcidsDatasetFeature):
 
     @property
     def default_feature_name(self):
-        return f"mel_{self.mel_spectrogram.n_mels}"
+        return f"cqt_{self.kwargs.get("n_bins", 84)}"
 
     def from_fragment(self, fragment, write: bool = True):
         data = fragment.get_audio("waveform")
         try: 
             cqt = self.cqt(data)
+            cqt = np.concatenate([cqt.real, cqt.imag], axis=0)
         except RuntimeError:
             return  
         if write:

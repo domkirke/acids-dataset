@@ -15,7 +15,7 @@ from acids_dataset.fragments.acids import AcidsFragment
 AcidsFragment.force_array_reshape = False
 from acids_dataset.writers import get_writer_class
 from acids_dataset.features import AcidsDatasetFeature, append_meta_regexp
-from acids_dataset.utils import feature_from_gin_config, parse_features, checklist
+from acids_dataset.utils import feature_from_gin_config, parse_features, checklist, set_gin_constant
 
 
 def get_default_output_path(path):
@@ -47,12 +47,12 @@ def preprocess_dataset(
     import_database_configs()
     gin.add_config_file_search_path(Path(__file__).parent / "configs")
     gin.add_config_file_search_path(path)
-    gin.constant('SAMPLE_RATE', sample_rate)
+    set_gin_constant('SAMPLE_RATE', sample_rate)
     if chunk_length is not None:
-        gin.constant('CHUNK_LENGTH', chunk_length)
-        gin.constant('HOP_LENGTH', hop_length or chunk_length // 2)
-    gin.constant('CHANNELS', channels)
-    gin.constant('DEVICE', device or "cpu")
+        set_gin_constant('CHUNK_LENGTH', chunk_length)
+        set_gin_constant('HOP_LENGTH', hop_length or chunk_length // 2)
+    set_gin_constant('CHANNELS', channels)
+    set_gin_constant('DEVICE', device or "cpu")
 
     # parse features
     features = features or []

@@ -1,5 +1,6 @@
 import gin.torch
 from torch.utils.data import Sampler, BatchSampler
+from ..writers.utils import KeyIterator, FeatureHashComponent
 import torch
 import re
 from math import ceil

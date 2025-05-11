@@ -1,4 +1,5 @@
 import pytest
+import shutil
 import acids_dataset as ad
 from acids_dataset import transforms as adt
 from . import OUT_TEST_DIR, test_name
@@ -34,9 +35,10 @@ def test_audio_dataset(dataset, transforms, output_pattern, test_name):
 @pytest.mark.parametrize("dataset", get_available_datasets())
 def test_dataset_partitions(dataset):
     preprocessed_path = OUT_TEST_DIR / f"{dataset}_preprocessed"
-    if not preprocessed_path.exists():
-        dataset_path = get_dataset(dataset)
-        ad.preprocess_dataset(dataset_path, out = preprocessed_path)
+    if preprocessed_path.exists(): 
+        shutil.rmtree(preprocessed_path)
+    dataset_path = get_dataset(dataset)
+    ad.preprocess_dataset(dataset_path, out = preprocessed_path, chunk_length=88200)
     dataset = ad.datasets.AudioDataset(preprocessed_path) 
 
     # test random split    
@@ -45,18 +47,18 @@ def test_dataset_partitions(dataset):
     for k, v in partitions.items():
         for i in range(len(v)):
             out = v[i]
-    dataset.load_partition("random")
+    dataset.load_partition("random", True)
 
     partitions = dataset.split(target_partition, features=['original_path'], write="path")
     for k, v in partitions.items():
         for i in range(len(v)):
            out = v[i]
-    dataset.load_partition("path")
+    dataset.load_partition("path", True)
 
     partitions = dataset.split(target_partition, features=['original_path'], balance_cardinality=True, write="balanced_path")
     for k, v in partitions.items():
         for i in range(len(v)):
             out = v[i]
-    dataset.load_partition("balanced_path")
+    dataset.load_partition("balanced_path", True)
         
 

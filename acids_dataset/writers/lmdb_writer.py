@@ -117,6 +117,7 @@ class LMDBWriter(object):
 
     def _init_feature_status(self, features): 
         feature_status = {f.feature_name: StatusBytes() for f in features}
+        feature_status['waveform'] = StatusBytes()
         return feature_status
     
     @staticmethod
@@ -155,7 +156,7 @@ class LMDBWriter(object):
                             current_key=current_key, 
                             feature_hash=feature_hash)
             feature_status[feature.feature_name].push(feature.read(fragment)) is not None
-            return True
+        return True
 
     @classmethod
     def _close_features(cls, features):
@@ -212,11 +213,12 @@ class LMDBWriter(object):
                     current_key = next(key_generator)
                     n_seconds += float(fragment.get_metadata().get('length', '0'))
                     feature_hash['original_path'][str(current_file)].append(current_key)
-                    cls._extract_features(fragment, features, feature_status, current_key, feature_hash)
+                    cls._extract_features(fragment, features, current_key, feature_hash, feature_status)
                     txn.put(
                         current_key.encode(), 
                         fragment.serialize()
                     )
+                    feature_status['waveform'].push(fragment.has_buffer('waveform'))
             except FileNotReadException: 
                 pass
         return n_seconds
@@ -252,11 +254,14 @@ class LMDBWriter(object):
                     metadata = self._update_metadata(parser.get_metadata(), metadata)
                 parsed_time = self._add_file_to_lmdb(txn, parser, self.features, feature_hash, feature_status, key_generator, self.fragment_class, dataset_path)
                 n_seconds += parsed_time
-                pid = os.getpid()
-                n_objs = len(os.listdir(f'/proc/{pid}/fd'))
                 if self.log: 
-                    with open(self.log, "a+") as file: 
-                        file.write(f'{i}\t{current_file}->{key_generator.current_idx} ({n_objs} files opened)\n')
+                    pid = os.getpid()
+                    try: 
+                        n_objs = len(os.listdir(f'/proc/{pid}/fd'))
+                        with open(self.log, "a+") as file: 
+                            file.write(f'{i}\t{current_file}->{key_generator.current_idx} ({n_objs} files opened)\n')
+                    except: 
+                        pass
 
             logging.info('adding feature hash to database...')
             type(self)._add_feature_hash_to_lmdb(txn, feature_hash)

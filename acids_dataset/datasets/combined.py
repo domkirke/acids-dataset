@@ -76,7 +76,8 @@ class CombinedAudioDataset(torch.utils.data.Dataset):
         subdataset._subindices = subindices
         subdataset._dataset_map = cumsum([len(d) for d in subdataset._subindices])
         subdataset.parent = self
-        subdataset._max_samples = int(self._max_samples * (len(subindices) / len(self)))
+        if self._max_samples:
+            subdataset._max_samples = int(self._max_samples * (len(subindices) / len(self)))
         return subdataset
 
     def _check_feature_in_subdatasets(self, features):

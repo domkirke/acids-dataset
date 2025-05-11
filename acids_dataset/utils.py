@@ -167,13 +167,13 @@ def get_available_cuda_device():
 
 
 def get_default_accelerated_device():
-    cuda_available = os.environ.get('USE_CUDA', True) or torch.cuda.is_available()
+    cuda_available = os.environ.get('USE_CUDA', True) and torch.cuda.is_available()
     if cuda_available:
         if os.environ.get('CUDA_AVAILABLE_DEVICES'):
             get_available_cuda_device()
         else:
             return torch.device('cuda')
-    mps_available = os.environ.get('USE_MPS', False) or torch.mps.is_available()
+    mps_available = os.environ.get('USE_MPS', False) and torch.mps.is_available()
     if mps_available: 
         return torch.device('mps')
     return torch.device('cpu')

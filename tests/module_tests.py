@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import torch, torch.nn as nn
 import gin.torch
 
@@ -7,6 +8,7 @@ scripted_paths = Path(__file__).parent / "scripted"
 def check_scripted_version(module):
     if not hasattr(module, "scripted_name"):
         return
+    os.makedirs(scripted_paths, exist_ok=True)
     if not(scripted_paths / module.scripted_name).exists():
         module_scripted = torch.jit.script(module())
         torch.jit.save(module_scripted, str(scripted_paths / module.scripted_name))

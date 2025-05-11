@@ -24,7 +24,7 @@ class AudioDataset(torch.utils.data.Dataset):
                  db_path: str,
                  transforms: TransformType = None, 
                  output_pattern: str = 'waveform',
-                 required_fields: Iterable[str] = ['waveform'],
+                 required_fields: Iterable[str] = [],
                  output_type: str = "torch",
                  channels: int = 1, 
                  lazy_import: bool = False, 
@@ -138,8 +138,11 @@ class AudioDataset(torch.utils.data.Dataset):
     def get(self, index, output_pattern=None, transforms=None):
         output_pattern = output_pattern or self.output_pattern
         transforms = transforms or self.transforms
-        if self._subindices is not None:
+        if (self._subindices is not None) and isinstance(index, int):
             index = self._subindices[index]
+        elif (self._subindices is not None) and isinstance(index, (str, bytes)):
+            #TODO think about this : allow or not? 
+            pass
         fg = self._loader[index]
         outs = _outs_from_pattern(fg, output_pattern)
         outs = _transform_outputs(outs, self.transforms, self._n_channels)
@@ -202,6 +205,7 @@ class AudioDataset(torch.utils.data.Dataset):
         if self._subindices is not None: 
             for k in subindices:
                 subindices[k] = [self._subindices[i] for i in subindices[k]]
+        subindices = {k: list(map(lambda x: self._loader._keys[x], subindices[k])) for k in subindices}
         return {k: self.get_subdataset(subindices[k]) for k in ratios.keys()}           
 
     def _split_with_features(self, partitions, features, tolerance=0.1, balance_cardinality = False):
@@ -292,7 +296,7 @@ class AudioDataset(torch.utils.data.Dataset):
         with open(partition_file, "wb+") as f:
             for p, v in partitions.items(): 
                 f.write(f"{p};".encode('utf-8'))
-                f.write((",".join(map(str, v._subindices))).encode('utf-8'))
+                f.write(b",".join(v._subindices))
                 f.write(("\n").encode('utf-8'))
 
     def has_partition(self, name: str):
@@ -300,22 +304,6 @@ class AudioDataset(torch.utils.data.Dataset):
         partition_path = os.path.join(self._db_path, "partitions", name)
         return os.path.exists(partition_path)
 
-    def load_partition(self, name: str | None, check: bool = False):
-        if name is None: name = type(self._default_partition_name)
-        if os.path.splitext(name)[1] != ".txt": name += ".txt"
-        partition_path = os.path.join(self._db_path, "partitions", name)
-        if not os.path.exists(partition_path):
-            raise FileNotFoundError("could not load partition %s"%name)
-        partitions = {}
-        with open(partition_path, 'rb') as f:
-            for l in f.readlines():
-                l = l.decode('utf-8')
-                name, subindices = l.split(';')
-                subindices = list(map(int, subindices.split(',')))
-                partitions[name] = self.get_subdataset(subindices, check)
-        return partitions
-
-    
     def split(self, 
               partitions, 
               features=None, 
@@ -356,6 +344,20 @@ class AudioDataset(torch.utils.data.Dataset):
             self._write_partition(partitions, write)
         return partitions
 
+    def load_partition(self, name: str | None, check: bool = False):
+        if name is None: name = type(self._default_partition_name)
+        if os.path.splitext(name)[1] != ".txt": name += ".txt"
+        partition_path = os.path.join(self._db_path, "partitions", name)
+        if not os.path.exists(partition_path):
+            raise FileNotFoundError("could not load partition %s"%name)
+        partitions = {}
+        with open(partition_path, 'rb') as f:
+            for l in f.readlines():
+                name, subindices = l.split(b';')
+                subindices = subindices.replace(b'\n', b'')
+                partitions[name.decode('utf-8')] = self.get_subdataset(subindices.split(b','), check)
+        return partitions
+    
 
                  
 

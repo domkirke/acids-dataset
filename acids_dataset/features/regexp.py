@@ -1,4 +1,5 @@
 from .base import AcidsDatasetFeature
+import gin.torch
 import logging
 import re
 import fnmatch
@@ -41,6 +42,7 @@ def glob_to_regex(glob_pattern, feature_name):
     
     return regex_pattern
 
+@gin.configurable(module="features")
 class RegexpFeature(AcidsDatasetFeature):
     has_hash = True
 

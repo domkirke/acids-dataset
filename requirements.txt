@@ -14,9 +14,11 @@ librosa>=0.10.2
 protobuf
 torch>=2.5.1
 torchaudio>=2.5.1
+pytorch_lightning>=2.5.1
 nnaudio
 mir_eval
 resampy
 pretty_midi
+einops
 rotary_embedding_torch
-git+https://github.com/iver56/audiomentations/
+audiomentations

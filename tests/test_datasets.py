@@ -102,6 +102,8 @@ def test_build_dataset(config, dataset, test_name, test_k = 1):
 @pytest.mark.parametrize('config', ['default.gin'])
 def test_slakh_dataset(config, test_name, test_k=2):
     # test writing
+    set_gin_constant('CHUNK_LENGTH', 88200)
+    set_gin_constant('HOP_LENGTH', 88200)
     set_gin_constant('SAMPLE_RATE', 44100)
     set_gin_constant('CHANNELS', 1)
     gin.parse_config_file(config)

@@ -126,6 +126,8 @@ def test_after_midi(config, dataset, feature_path, feature_config, test_name, te
 @pytest.mark.parametrize("dataset", ['simple'])
 @pytest.mark.parametrize('feature_path,feature_config', get_feature_configs('module'))
 def test_module(config, dataset, feature_path, feature_config, test_name, test_k=10):
+    if feature_config == "moduleembedding.gin": 
+        pytest.skip(reason="moduleembedding.gin not valid for testing")
     gin.add_config_file_search_path(feature_path)
     set_gin_constant('SAMPLE_RATE', 44100)
     set_gin_constant('CHANNELS', 1)
@@ -178,7 +180,7 @@ def test_feature_clustering(config, dataset, feature_path, feature_config, test_
     writer.build()
 
     # hash from cluster
-    dataset = AudioDataset(dataset_out)
+    dataset = AudioDataset(dataset_out, required_fields=['waveform', mel_feature.feature_name])
     kmeans = hash_from_clustering(dataset, mel_feature.feature_name, n_clusters, pca_target_dim=0, write=True, verbose=True)
     
     for cluster_idx in range(n_clusters):

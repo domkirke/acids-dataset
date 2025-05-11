@@ -1,4 +1,5 @@
 import os
+import random
 import pickle
 import shutil
 from pathlib import Path
@@ -25,6 +26,7 @@ def get_midi_from_folder(folder):
     return midi_files
 
 def get_midi_from_candidates(midi_paths, original_name=None):
+    midi_paths = list(filter(lambda x: x.exists(), midi_paths))
     if len(midi_paths) == 0:
         return None
     elif len(midi_paths) == 1:
@@ -34,7 +36,8 @@ def get_midi_from_candidates(midi_paths, original_name=None):
             for f in midi_paths:
                 if os.path.splitext(os.path.basename(f))[0] == original_name:
                     return Path(f)
-        raise FeatureException("Several candidates found for original name %s."%original_name)
+        else:
+            return midi_paths[random.randrange(0, len(midi_paths))]
 
 def find_candidates(folder, original_name=None):
     midi_files = get_midi_from_folder(folder)

@@ -31,7 +31,10 @@ class ModuleEmbedding(AcidsDatasetFeature):
         self._init_transforms(transforms, batch_transforms)
 
     def __repr__(self):
-        module_repr = type(self._module).__name__
+        if hasattr(self, "_module"):
+            module_repr = type(self._module).__name__
+        else:
+            module_repr = "<NoRecordedModule>"
         transform_repr = [type(t).__name__ for t in self._transforms]
         return "ModuleEmbedding(module=%s, method=%s, transforms=%s)"%(module_repr, self._method, transform_repr)
 
@@ -77,7 +80,7 @@ class ModuleEmbedding(AcidsDatasetFeature):
     def _load_module_from_path(self, module_path): 
         if os.path.splitext(module_path)[1] == ".ts":
             assert not self.retain_module, "retain_module must be False if given a .ts file (TorchScript modules are not pickable)"
-            self._module = torch.jit.load(module_path)
+            self._module = torch.jit.load(module_path, map_location=torch.device('cpu'))
         else:
             raise RuntimeError("cannot load model %s"%module_path)
 
