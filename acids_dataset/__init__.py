@@ -70,6 +70,15 @@ def get_parser_class_from_path(path):
     metadata = get_metadata_from_path(path)
     return get_parser_class(metadata['parser_class'])
 
+def get_features_from_path(path):
+    writer_class = get_writer_class_from_path(path)
+    return writer_class.loader(path).features
+
+def get_feature_names_from_path(path):
+    writer_class = get_writer_class_from_path(path)
+    return list(writer_class.loader(path).features.keys())
+
+
 from . import writers
 from . import datasets
 from .preprocess import *

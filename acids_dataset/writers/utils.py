@@ -1,4 +1,6 @@
 import os
+import numpy as np
+import contextlib
 import yaml
 import fnmatch
 from pathlib import Path
@@ -90,7 +92,6 @@ class KeyIterator():
     def current_idx(self):
         return int(self.current_id)
     def from_int(self, x: int):
-        assert x < self.current_id, f"key iterator has generated {self.current_id} so far."
         key = f"{x:0{self._n}d}"
         return key.encode('utf-8')
     @staticmethod
@@ -103,8 +104,44 @@ class KeyIterator():
     def to_str(x: str):
         return x.decode('utf-8')
 
-    
-    
 
+class StatusBytes():
+    def __init__(self): 
+        self._bytearray = bytearray(1024)
+        self._current_idx = 0
 
+    def push(self, value: bool):
+        self._bytearray[self._current_idx] = bool(value)
+        self._current_idx += 1
+        if self._current_idx == len(self._bytearray) - 1:
+            self._bytearray += bytearray(1024)
         
+    def close(self):
+        self._bytearray = self._bytearray[:self._current_idx]
+    
+    def count(self): 
+        return sum(self._bytearray)
+
+    def nonzero(self): 
+        # numpy is more efficient for large buffer (C-based)
+        arr = np.frombuffer(self._bytearray, dtype=np.uint8)
+        positions = set(np.flatnonzero(arr).tolist())
+        return positions
+
+    def __getstate__(self):
+        return {'bytearray': self._bytearray}
+
+    def __setstate__(self, state):
+        self.__dict__.update(_bytearray=state['bytearray'] + bytearray(1024), _current_idx=len(state['bytearray']))
+
+@contextlib.contextmanager 
+def status_bytes():
+    b = StatusBytes()
+    try: 
+        yield b
+    finally:
+        b.close()
+        
+        
+
+

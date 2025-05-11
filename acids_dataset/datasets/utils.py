@@ -88,6 +88,8 @@ def _check_channels(out, n_channels = None):
     return out
 
 def _transform_outputs(outs, transforms, n_channels=None):
+    if transforms is None: 
+        return outs
     if isinstance(outs, (list, tuple)):
         outs = list(outs)
         assert isinstance(transforms, (tuple, list))

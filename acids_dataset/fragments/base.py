@@ -4,6 +4,7 @@ import torch
 import numpy as np
 from typing import Any, Optional, Callable, Literal
 from types import MethodType
+from . import FORCE_ARRAY_RESHAPE
 from .utils import dict_from_buffer, dict_to_buffer
 from ..utils import get_backend
 
@@ -15,6 +16,7 @@ DEFAULT_OUTPUT_TYPE = "numpy"
 
 
 class AudioFragment(object):
+    force_array_reshape = True
     def __init__(self):
         """
         Implements base functions for audio fragments, that are : 
@@ -108,7 +110,6 @@ class AudioFragment(object):
             if buf.unpickler != b'':
                 data = dill.loads(buf.unpickler)(data) 
         return data
-            
 
     def get_array(self, key: str, dtype = None, force_dtype: bool = True, conversion_hook: Callable | None = None):
         if not hasattr(self, "PRECISION_TO_DTYPE"):
@@ -116,10 +117,18 @@ class AudioFragment(object):
 
         buf = self.get_buffer(key)
         dtype_decode = getattr(self, "PRECISION_TO_DTYPE")[buf.precision]
+
         array = np.frombuffer(
             buf.data,
             dtype=dtype_decode
-        ).reshape(buf.shape).copy()
+        ).copy()
+        try:
+            array = array.reshape(buf.shape)
+        except Exception as e: 
+            if self.force_array_reshape: 
+                raise e
+            else:
+                pass
         
         dtype = dtype or array.dtype
         if self.output_type == "numpy":
@@ -142,16 +151,15 @@ class AudioFragment(object):
 
     def get_audio(self, key: str):
         if not hasattr(self, "output_type"):
-            raise KeyError('cannot perform get_audio : key %s does not have output_type field'%self.key)
-        if not hasattr(self, "bformat"):
-            raise KeyError('cannot perform get_audio : key %s does not have bformat field'%self.key)
+            raise KeyError('cannot perform get_audio : fragment does not have output_type field')
+        bformat = getattr(self, "bformat", "int16")
         if self.output_type == "numpy":
             dtype = np.float64
         elif self.output_type == "torch":
             dtype = torch.float32
-        if self.bformat == "int16":
+        if bformat == "int16":
             hook = lambda x: x / (2**15 - 1)
-        elif self.bformat in ["int32", "int64"]:
+        elif bformat in ["int32", "int64"]:
             raise NotImplementedError()
         else:
             hook = lambda x: x
@@ -212,7 +220,13 @@ class AudioFragment(object):
 
     def get_metadata(self):
         buf = self.ae.buffers["metadata"]
-        return dict_from_buffer(buf)
+        if not buf.ByteSize():
+            return {}
+        else:
+            try:
+                return dict_from_buffer(buf)
+            except Exception as e: 
+                print(e)
 
     def _safe_torch_to_numpy(self, tensor):
         torch = get_backend("torch")

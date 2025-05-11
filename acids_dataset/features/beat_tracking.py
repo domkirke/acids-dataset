@@ -91,16 +91,16 @@ class BeatTrack(AcidsDatasetFeature):
             raise ValueError('either audio or audio_path must be given.')
         if waveform.ndim == 2: 
             waveform = waveform.mean(0)
-        beats, downbeats = self.audio2beats(waveform, self.sr)
+        beats, downbeats = self.audio2beats(waveform, sr)
         beat_clock = self.get_beat_signal(beats,
                                           waveform.shape[-1],
                                           z_length,
-                                          sr=self.sr,
+                                          sr=sr,
                                           zero_value=0.)
         downbeat_clock = self.get_beat_signal(downbeats,
                                               waveform.shape[-1],
                                               z_length,
-                                              sr=self.sr,
+                                              sr=sr,
                                               zero_value=0.)
         return np.stack([beat_clock, downbeat_clock], axis=0)
 

@@ -1,4 +1,5 @@
 import importlib
+import copy
 import inspect, pkgutil
 import logging
 import enum
@@ -38,23 +39,40 @@ def load_file(file_path):
 class GinEnv(object):
     def __init__(self, paths=[], configs=[], bindings=[]):
         self._paths = checklist(paths)
-        self._original_config = None
-        self._new_configs = checklist(configs)
-        self._new_bindings = checklist(bindings)
-        self._loc_prefix = None
+        self._configs = checklist(configs)
+        self._bindings = checklist(bindings)
+        self._dict = None
+
+    def _copy_gin_dict(self):
+        gin_dict = {}
+        for k, v in gin.config.__dict__.items(): 
+            try:
+                if k == "_SCOPE_MANAGER":
+                    gin_dict[k] = {'active_scopes': v.active_scopes,
+                                   'current_scope': v.current_scope,
+                                   '_active_scopes': v._active_scopes}
+                else:
+                    gin_dict[k] = copy.deepcopy(v)
+            except: 
+                gin_dict[k] = v
+        return gin_dict
     
     def __enter__(self):
-        self._loc_prefix = list(gin.config._LOCATION_PREFIXES)
-        gin.config._LOCATION_PREFIXES = self._paths
-        self._original_config = gin.config_str()
-        with gin.unlock_config():
-            gin.clear_config()
-            gin.parse_config_files_and_bindings(self._new_configs, self._new_bindings)
+        self._dict = self._copy_gin_dict()
+        gin.clear_config()
+        for p in self._paths: 
+            gin.add_config_file_search_path(p)
+        if len(self._configs) or len(self._bindings):
+            gin.parse_config_files_and_bindings(self._configs, self._bindings)
+        gin.unlock_config()
 
     def __exit__(self, *args):
-        gin.config._LOCATION_PREFIXES = self._loc_prefix
-        with gin.unlock_config(): 
-            gin.parse_config(self._original_config)
+        gin.clear_config()
+        scope_manager = gin.config._ScopeManager()
+        scope_manager.__dict__.update(self._dict['_SCOPE_MANAGER'])
+        self._dict['_SCOPE_MANAGER'] = scope_manager
+        gin.config.__dict__.clear()
+        gin.config.__dict__.update(self._dict)
 
 
 def loudness(waveform: torch.Tensor, sample_rate: int):
@@ -297,3 +315,8 @@ def apply_nested(func, nested):
     else:
         return func(nested)
     
+def get_folder_size(path):
+    size = sum(f.stat().st_size for f in Path(path).rglob('*') if f.is_file())
+    size /= (1024 ** 3)
+    return size
+  

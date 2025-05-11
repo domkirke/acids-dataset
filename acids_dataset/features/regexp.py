@@ -83,4 +83,7 @@ class RegexpFeature(AcidsDatasetFeature):
         if write:
             fragment.update_metadata(**{self.feature_name: meta_id})
         return meta_id
+
+    def read(self, fragment):
+        return fragment.get_metadata().get('partition')
         

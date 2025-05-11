@@ -8,22 +8,24 @@ import shutil
 import lmdb
 import tqdm
 from pathlib import Path
-from .utils import audio_paths_from_dir, FeatureHash, KeyIterator, checklist
+from .utils import audio_paths_from_dir, FeatureHash, KeyIterator, StatusBytes, status_bytes, checklist
 from .. import get_fragment_class, get_parser_class_from_path, get_metadata_from_path, get_fragment_class_from_path
+from ..utils import get_folder_size
 from ..parsers import RawParser, FileNotReadException
-from ..fragments import AudioFragment
+from ..fragments import AudioFragment, AcidsFragment
 from ..features import AcidsDatasetFeature
 from typing import List, Callable, Literal, Tuple
 import gin
 import yaml
 
 
-non_buffer_keys = ['feature_hash', 'features', 'keygen']
+non_buffer_keys = ['feature_hash', 'feature_status', 'features', 'keygen']
+VERBOSE_PARSING = False
 
 @gin.configurable(module="writer")
 class LMDBWriter(object):
     KeyGenerator = KeyIterator 
-    _default_max_db_size = 100
+    _max_percent_for_db_size = 0.34
     def __init__(
         self, 
         dataset_path: str | Path, 
@@ -51,7 +53,7 @@ class LMDBWriter(object):
             parser (str | object, optional): Parser used to extract fragments from a given audio file. 
             fragment_class (str | AudioFragment, optional): AudioFragment subclass used for each fragment. Defaults to "AcidsFragment".
             features (List[AcidsDatasetFeature] | None, optional): Optional list of AcidsDatasetFeature objects for attached features. Defaults to None.
-            max_db_size (int | float | None, optional): Maximum dataset size in Gb. Defaults to 100.
+            max_db_size (int | float | None, optional): Maximum dataset size in Gb. Defaults to 30% of target drive.
             dyndb (bool, optional): Allowing dynamic re-growing of database. Defaults to False.
             valid_exts (List[str] | None, optional): Valid audio extensions, None for every readable extension. Defaults to None.
             filters (List[str], optional): List of glob-like patterns to filter audio paths. Defaults to [].
@@ -77,7 +79,7 @@ class LMDBWriter(object):
         os.makedirs(self.output_path)
         # record parsers
         self.parser = parser
-        self.max_db_size = max_db_size or self._default_max_db_size
+        self.max_db_size = max_db_size or self.default_db_size(self.output_path)
         if isinstance(fragment_class, str): fragment_class = get_fragment_class(fragment_class)
         self.fragment_class = fragment_class
         self.features = features or []
@@ -104,10 +106,18 @@ class LMDBWriter(object):
             if not out: 
                 exit()
 
+    @classmethod
+    def default_db_size(self, path):
+        return self._max_percent_for_db_size * (shutil.disk_usage(path)[2] // (2**30))
+
     def _init_feature_hash(self):
         """inits internal feature hash"""
         feature_hash = FeatureHash(original_path={})
         return feature_hash
+
+    def _init_feature_status(self, features): 
+        feature_status = {f.feature_name: StatusBytes() for f in features}
+        return feature_status
     
     @staticmethod
     def get_feature_name(f):
@@ -133,17 +143,19 @@ class LMDBWriter(object):
         return metadata_dict
 
     @staticmethod
-    def _extract_features(fragment, features, current_key, feature_hash, overwrite=False):
+    def _extract_features(fragment, features, current_key, feature_hash, feature_status, overwrite=False):
         """extract features from a given fragment"""
         for feature in features:
             feature_name = feature.feature_name
             if fragment.has_buffer(feature_name) or fragment.has_metadata(feature_name):
                 if not overwrite:
-                    logging.info(f"metadata {feature_name} already present in fragment {current_key} ; skipping")
-                    continue
+                    if VERBOSE_PARSING: logging.info(f"metadata {feature_name} already present in fragment {current_key} ; skipping")
+                    return False 
             feature.extract(fragment=fragment, 
                             current_key=current_key, 
                             feature_hash=feature_hash)
+            feature_status[feature.feature_name].push(feature.read(fragment)) is not None
+            return True
 
     @classmethod
     def _close_features(cls, features):
@@ -171,11 +183,21 @@ class LMDBWriter(object):
         )
 
     @classmethod
+    def _add_feature_status_to_lmdb(cls, txn, feature_status):
+        for k, v in feature_status.items(): 
+            feature_status[k].close()
+        txn.put(
+            cls.KeyGenerator.from_str("feature_status"),
+            dill.dumps(feature_status)
+        )
+
+    @classmethod
     def _add_file_to_lmdb(cls, 
                           txn, 
                           parser, 
                           features, 
                           feature_hash, 
+                          feature_status,
                           key_generator, 
                           fragment_class, 
                           dataset_path):
@@ -190,7 +212,7 @@ class LMDBWriter(object):
                     current_key = next(key_generator)
                     n_seconds += float(fragment.get_metadata().get('length', '0'))
                     feature_hash['original_path'][str(current_file)].append(current_key)
-                    cls._extract_features(fragment, features, current_key, feature_hash)
+                    cls._extract_features(fragment, features, feature_status, current_key, feature_hash)
                     txn.put(
                         current_key.encode(), 
                         fragment.serialize()
@@ -220,6 +242,7 @@ class LMDBWriter(object):
         n_seconds = 0
         metadata = {}
         feature_hash = self._init_feature_hash()
+        feature_status = self._init_feature_status(self.features)
         key_generator = iter(KeyIterator())
         with env.begin(write=True) as txn:
             for i, current_file in tqdm.tqdm(enumerate(self._files), total=len(self._files)):
@@ -227,7 +250,7 @@ class LMDBWriter(object):
                 parser = self.parser(current_file, features=self.features, dataset_path = dataset_path, waveform=self.waveform) 
                 if len(metadata) == 0:
                     metadata = self._update_metadata(parser.get_metadata(), metadata)
-                parsed_time = self._add_file_to_lmdb(txn, parser, self.features, feature_hash, key_generator, self.fragment_class, dataset_path)
+                parsed_time = self._add_file_to_lmdb(txn, parser, self.features, feature_hash, feature_status, key_generator, self.fragment_class, dataset_path)
                 n_seconds += parsed_time
                 pid = os.getpid()
                 n_objs = len(os.listdir(f'/proc/{pid}/fd'))
@@ -241,6 +264,7 @@ class LMDBWriter(object):
             logging.info('adding features to database...')
             type(self)._add_features_to_lmdb(txn, self.features)
             type(self)._add_keygen_to_lmdb(txn, key_generator)
+            type(self)._add_feature_status_to_lmdb(txn, feature_status)
 
         # write metadata
         metadata_path = self.output_path / "metadata.yaml"
@@ -295,6 +319,22 @@ class LMDBWriter(object):
                 yield key
         
     @classmethod
+    def status_from_buffer_name(cls, buffer_name, txn, fragment_class):
+        status = bytearray(1024)
+        bs = StatusBytes()
+        for i, key in enumerate(cls.iter_fragment_keys(txn)):
+            bs.push(fragment_class(txn.get(key)).has_buffer(buffer_name))
+        return bs 
+    
+    @classmethod 
+    def status_from_feature(cls, f: AcidsDatasetFeature, txn: lmdb.Transaction, fragment_class):
+        status = bytearray(1024)
+        bs = StatusBytes()
+        for i, key in enumerate(cls.iter_fragment_keys(txn)):
+            bs.push(f.read(fragment_class(txn.get(key))) is not None)
+        return bs 
+    
+    @classmethod
     def update(cls, 
         path: str, 
         features: List[AcidsDatasetFeature] | None = None,
@@ -306,6 +346,7 @@ class LMDBWriter(object):
         dir_parser: Callable = audio_paths_from_dir,
         valid_exts: List[str] | None = None, 
         max_db_size: int = 100,
+        show_status: bool = True,
     ):
         path = Path(path).resolve()
         assert path.exists(), f"preprocessed dataset {path} does not seem to exist."
@@ -315,9 +356,10 @@ class LMDBWriter(object):
         for i, d in enumerate(data):
             data[i] = Path(d).resolve()
             if not data[i].exists(): raise FileNotFoundError(f'folder {data[i]} does not seem to exist')
+        max_db_size = max(max_db_size or cls.default_db_size(path), 1.1 * get_folder_size(path))
 
         # create env
-        env = lmdb.open(str(path), map_size=max_db_size * 1024 ** 3)
+        env = lmdb.open(str(path), map_size=int(max_db_size * 1024 ** 3))
         metadata = get_metadata_from_path(path)
         n_chunks = metadata['n_chunks']
         n_seconds = metadata['n_seconds']
@@ -348,24 +390,48 @@ class LMDBWriter(object):
             
         # parse features
         with env.begin(write=True) as txn:
+            existing_features = list(dill.loads(txn.get(cls.KeyGenerator.from_str('features'))).values())
+            existing_features_names = [f.feature_name for f in existing_features]
+
             # parse features
-            features = list(dill.loads(txn.get(cls.KeyGenerator.from_str('features'))).values()) + features
             fragment_class = get_fragment_class_from_path(path)
             feature_hash = cls.get_feature_hash(txn)
 
+            # check feature status bytearray
+            feature_status = txn.get(cls.KeyGenerator.from_str('feature_status'))
+            if not feature_status:
+                feature_status = {k.feature_name: None for k in existing_features}
+            else:
+                feature_status = dill.loads(feature_status)
+            if not "waveform" in feature_status:
+                feature_status["waveform"] = cls.status_from_buffer_name("waveform", txn, fragment_class)
+            for f in existing_features: 
+                if not f.feature_name in feature_status:
+                    feature_status[f.feature_name] = cls.status_from_feature(f, txn, fragment_class)
+                    txn.put(cls.KeyGenerator.from_str('feature_status'), dill.dumps(feature_status))
+
             if len(features) > 0:
                 for f in features: 
-                    feature_hash[f.feature_name] = {}
-                for key in cls.iter_fragment_keys(txn):
-                    fragment = fragment_class(txn.get(key))
-                    cls._extract_features(fragment, features, key, feature_hash, overwrite=overwrite)
-                    txn.put(key, fragment.serialize())
+                    if f.feature_name in existing_features_names and not overwrite:
+                        continue
+                    if (f.feature_name not in feature_hash) and f.hash_from_feature:
+                        feature_hash[f.feature_name] = {}
+                    feature_status[f.feature_name] = StatusBytes()
+                    iterator = cls.iter_fragment_keys(txn) if not show_status else tqdm.tqdm(cls.iter_fragment_keys(txn), desc="computing feature %s"%f.feature_name, total=metadata['n_chunks'])
+                    for key in iterator:
+                        fragment = fragment_class(txn.get(key))
+                        needs_write = cls._extract_features(fragment, [f], key, feature_hash, feature_status, overwrite=overwrite)
+                        if needs_write:
+                            txn.put(key, fragment.serialize())
+
+            # check feature hash for every present feature
 
             # then, add additional data if needed
             parser_class = get_parser_class_from_path(path)
             files = []
             filters = filters or []
             exclude = exclude or []
+            features = existing_features + features
             if len(data) > 0:
                 for data_path in data:
                     files.append((data_path, 
@@ -392,13 +458,14 @@ class LMDBWriter(object):
                         parser = parser_class(current_file, 
                                               features=features, 
                                               dataset_path = data_path)
-                        parsed_time = cls._add_file_to_lmdb(txn, parser, features, feature_hash, key_generator, fragment_class, data_path)
+                        parsed_time = cls._add_file_to_lmdb(txn, parser, features, feature_hash, feature_status, key_generator, fragment_class, data_path)
                         n_seconds += parsed_time
                 n_chunks = key_generator.current_idx
                 metadata.update(n_seconds=n_seconds, n_chunks=n_chunks, features={cls.get_feature_name(f): str(f) for f in features})
 
             cls._add_feature_hash_to_lmdb(txn, feature_hash)
             cls._add_features_to_lmdb(txn, features)
+            cls._add_feature_status_to_lmdb(txn, feature_status)
 
             # write metadata
             metadata_path = path / "metadata.yaml"
@@ -463,24 +530,28 @@ class LMDBLoader(object):
         """
         self._db_path = db_path
         self._metadata = get_metadata_from_path(db_path)
-        self._fragment_class = get_fragment_class(self._metadata.get('fragment_class'))
+        self._fragment_class = get_fragment_class(self._metadata.get('fragment_class', "AcidsFragment"))
         self._output_type = output_type
         self._length = self._metadata.get('n_chunks')
-        keygen_class = getattr((locals().get(self._metadata['writer_class']) or LMDBWriter), "KeyGenerator", KeyIterator)
+        keygen_class = getattr((locals().get(self._metadata.get('writer_class')) or LMDBWriter), "KeyGenerator", KeyIterator)
         filter_keys = list(map(lambda x: keygen_class.from_str(x), non_buffer_keys))
         self._database = self.open(db_path, readonly=True) 
         with self._database.begin() as txn:
             self._keys = list(filter(lambda x: x not in filter_keys, txn.cursor().iternext(values=False)))
             self._length = len(self._keys)
-            self._keygen = dill.loads(txn.get('keygen'.encode('utf-8')))
-            self._features = dill.loads(txn.get(self._keygen.from_str('features')))
+            keygen = txn.get('keygen'.encode('utf-8'))
+            self._keygen = type(self).writer.KeyGenerator() if keygen is None else dill.loads(keygen)
+            features = txn.get(self._keygen.from_str('features'))
+            self._features = [] if features is None else dill.loads(features)
+            feature_status = txn.get(self._keygen.from_str('feature_status')) 
+            self._feature_status = None if feature_status is None else dill.loads(feature_status)
 
     def __len__(self):
         return self._length
 
     def __getitem__(self, idx: int | str| bytes):
         if isinstance(idx, int):
-            idx_key = self._keygen.from_int(idx)
+            idx_key = self._keys[idx]
         elif isinstance(idx, str):
             idx_key = self._keygen.from_str(idx)
         else:
@@ -503,6 +574,10 @@ class LMDBLoader(object):
     def update_database(self):
         self._database.close()
         self._database = self.open()
+
+    @property
+    def feature_status(self):
+        return self._feature_status
 
     @property
     def feature_hash(self):

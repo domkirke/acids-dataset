@@ -3,6 +3,7 @@ from pathlib import Path
 import importlib
 PROTO_DIR = Path(__file__).parent / "interfaces"
 COMPILED_DIR = Path(__file__).parent / "compiled"
+FORCE_ARRAY_RESHAPE = True
 
 
 def is_message_class(obj_class):

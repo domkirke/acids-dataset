@@ -10,9 +10,12 @@ from absl import flags, app
 import sys
 import sys; sys.path.append(str(Path(__file__).parent.parent))
 from acids_dataset import import_database_configs
+from acids_dataset.fragments.acids import AcidsFragment
+# for retro-compatibility
+AcidsFragment.force_array_reshape = False
 from acids_dataset.writers import get_writer_class
 from acids_dataset.features import AcidsDatasetFeature, append_meta_regexp
-from acids_dataset.utils import feature_from_gin_config, parse_features
+from acids_dataset.utils import feature_from_gin_config, parse_features, checklist
 
 
 def get_default_output_path(path):
@@ -57,7 +60,7 @@ def preprocess_dataset(
     if os.path.splitext(config)[-1] != ".gin":
         config += ".gin"
     gin.parse_config_files_and_bindings([config], override)
-    path = list(map(Path, path))
+    path = list(map(Path, checklist(path)))
     out = out or get_default_output_path(path)
 
     operative_features = parse_features()

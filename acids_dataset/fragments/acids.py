@@ -35,6 +35,7 @@ class AcidsFragment(AudioFragment):
     ExampleClass = RaveExampleClass
     DTYPE_TO_PRECISION = DTYPE_TO_PRECISION
     PRECISION_TO_DTYPE = PRECISION_TO_DTYPE
+    force_array_reshape = True
 
     def init_from_kwargs(
             self,
@@ -44,7 +45,7 @@ class AcidsFragment(AudioFragment):
             start_pos: Optional[float] = None, 
             length: Optional[float] = None,
             file_length: Optional[float] = None,
-            bformat: Optional[str] = None,
+            bformat: Optional[str] = "int8",
             output_type: Literal["numpy", "torch", "jax"] = "numpy",
             **kwargs
             ) -> None:

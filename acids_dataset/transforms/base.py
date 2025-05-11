@@ -179,16 +179,16 @@ class Compose(UserList):
         """
         for i, t in enumerate(transforms): 
             assert isinstance(t, Transform), "got wrong type for transform #%d : %s"%(i, type(t))
-        super().__init__(*transforms)
+        super().__init__(transforms)
 
     def apply(self, x):
         for elm in self: 
             x = elm.apply(x)
         return x
 
-    def __call__(self, x):
+    def __call__(self, x, **kwargs):
         for elm in self:
-            x = elm(x)
+            x = elm(x, **kwargs)
         return x
 
 

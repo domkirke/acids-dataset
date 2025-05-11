@@ -23,48 +23,44 @@ def update_dataset(
     meta_regexp = [], 
     overwrite: bool = False,
     override = [], 
-    device: str | None = None
+    device: str | None = None,
+    max_db_size: int | None = None
     ):
-    path = Path(path)
-    # parse gin constants
-    gin.add_config_file_search_path(Path(__file__).parent / "configs")
-    gin.add_config_file_search_path(path)
-    metadata = get_metadata_from_path(path)
-    set_gin_constant('SAMPLE_RATE', metadata['sr'])
-    set_gin_constant('CHANNELS', metadata['channels'])
-    set_gin_constant('DEVICE', device)
+    with GinEnv(): 
+        path = Path(path)
+        # parse gin constants
+        gin.add_config_file_search_path(Path(__file__).parent / "configs")
+        gin.add_config_file_search_path(path)
+        metadata = get_metadata_from_path(path)
+        set_gin_constant('SAMPLE_RATE', metadata['sr'])
+        set_gin_constant('CHANNELS', metadata['channels'])
+        set_gin_constant('DEVICE', device)
 
-    # parse features
-    operative_features = []
-    for i, f in enumerate(features):
-        if isinstance(f, str):
-            if os.path.splitext(f)[1] == "": f += ".gin"
-            if os.path.exists(f):
-                gin.add_config_file_search_path(Path(f).parent)
-            try:
-                gin.parse_config_file(f)
-            except TypeError as e:
-                print('[error] problem parsing configuration %s'%f)
-                raise e
-            with GinEnv(f):
-                operative_features.extend(feature_from_gin_config(f))
-        elif isinstance(f, AcidsDatasetFeature):
-            operative_features.append(f)
+        # parse features
+        operative_features = []
+        for i, f in enumerate(features):
+            if isinstance(f, str):
+                with GinEnv(f):
+                    operative_features.extend(feature_from_gin_config(f))
+            elif isinstance(f, AcidsDatasetFeature):
+                operative_features.append(f)
 
-    # parse original config
-    gin.parse_config_files_and_bindings([str(path / "config.gin")], override)
-    operative_features = append_meta_regexp(operative_features, meta_regexp=meta_regexp)
+        # parse original config
+        with gin.unlock_config():
+            gin.parse_config_files_and_bindings([str(path / "config.gin")], override)
+        operative_features = append_meta_regexp(operative_features, meta_regexp=meta_regexp)
 
-    # build writer
-    writer_class = get_writer_class_from_path(path)
-    writer_class = writers.get_writer_class(writer_class, flt, exclude)
-    writer_class.update(
-        path, 
-        operative_features,
-        data, 
-        check=check, 
-        overwrite=overwrite
-    )
+        # build writer
+        writer_class = get_writer_class_from_path(path)
+        writer_class = writers.get_writer_class(writer_class, flt, exclude)
+        writer_class.update(
+            path, 
+            operative_features,
+            data, 
+            check=check, 
+            overwrite=overwrite, 
+            max_db_size=max_db_size,
+        )
 
 
 def main(argv):

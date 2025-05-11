@@ -145,6 +145,9 @@ class AcidsDatasetFeature(object):
                 feature_hash[self.feature_name][meta_hash].append(current_key)
         return meta
 
+    def read(self, fragment):
+        return fragment.get_data(self.feature_name)
+
 
 def check_feature_configs(module, path):
     feature_class = getattr(module, "AcidsDatasetFeature")
