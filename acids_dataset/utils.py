@@ -144,20 +144,25 @@ def get_random_hash(n=8):
 
 
 @gin.configurable(module="features")
-def parse_features(features=None, device=None):
+def parse_features(features=None, device=None, add_args=None):
     if features is None: 
         return []
     else:
+        f = checklist(features)
+        add_args = checklist(add_args, n=len(f))
+        for i, a in enumerate(add_args): 
+            if a is None: 
+                add_args[i] = (tuple(), dict())
         if device is not None: 
             set_gin_constant("DEVICE", device)
-        return [f() for f in checklist(features)]
+        return [f(*add_args[i][0], **add_args[i][1]) for i, f in enumerate(checklist(features))]
 
-def feature_from_gin_config(config_path):
+def feature_from_gin_config(config_path, add_args=None):
     config_path = checklist(config_path)
     for i in range(len(config_path)):
         if not os.path.splitext(config_path[i])[1] == ".gin": config_path[i] += ".gin"
     with GinEnv(configs=config_path, paths=FEATURES_GIN_PATH):
-        feature = parse_features()
+        feature = parse_features(add_args=add_args)
     return feature
 
 

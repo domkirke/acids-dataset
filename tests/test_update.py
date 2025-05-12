@@ -17,6 +17,17 @@ from acids_dataset import transforms as adt, ACIDS_DATASET_CONFIG_PATH
 from acids_dataset import get_fragment_class, features, update_dataset, add_embedding 
 from .datasets import get_available_datasets, get_dataset
 
+
+class ModuleTest(torch.nn.Module):
+    def forward(self, x): 
+        return x[..., ::32]
+
+additional_args = {
+     "beattrack": (tuple(), {"downsample": 2048}),
+     "regexpfeature": (("{{NAME}}",), {"name": "filename"}),
+     "moduleembedding": ((ModuleTest(),), {})
+}
+
  
 @pytest.mark.parametrize('config', ['rave.gin'])
 @pytest.mark.parametrize("dataset", ["simple"])
@@ -37,15 +48,16 @@ def test_update_dataset_features(config, dataset, feature, test_name, test_k = 1
     writer.build()
 
     # create feature
+    add_args = additional_args.get(feature.stem, (tuple(), dict()))
     with GinEnv(paths=ACIDS_DATASET_CONFIG_PATH):
-        features = feature_from_gin_config(feature)
+        features = feature_from_gin_config(feature, add_args=add_args)
     update_dataset(dataset_out, features, overwrite=True)
 
     # test loading
     loader = writer.loader(dataset_out)
     for k in loader.iter_fragment_keys():
         for f in features:
-            loader[k].get_data(f.feature_name)
+            f.read(loader[k])
 
 
 

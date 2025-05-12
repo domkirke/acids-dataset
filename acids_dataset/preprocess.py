@@ -9,13 +9,14 @@ from absl import flags, app
 
 import sys
 import sys; sys.path.append(str(Path(__file__).parent.parent))
+import acids_dataset as ad
 from acids_dataset import import_database_configs
 from acids_dataset.fragments.acids import AcidsFragment
 # for retro-compatibility
 AcidsFragment.force_array_reshape = False
 from acids_dataset.writers import get_writer_class
 from acids_dataset.features import AcidsDatasetFeature, append_meta_regexp
-from acids_dataset.utils import feature_from_gin_config, parse_features, checklist, set_gin_constant
+from acids_dataset.utils import feature_from_gin_config, parse_features, checklist, set_gin_constant, GinEnv
 
 
 def get_default_output_path(path):
@@ -43,56 +44,57 @@ def preprocess_dataset(
     compact: bool = False, 
     log: str | None = None
     ):
-    # parse gin constants
-    import_database_configs()
-    gin.add_config_file_search_path(Path(__file__).parent / "configs")
-    gin.add_config_file_search_path(path)
-    set_gin_constant('SAMPLE_RATE', sample_rate)
-    if chunk_length is not None:
-        set_gin_constant('CHUNK_LENGTH', chunk_length)
-        set_gin_constant('HOP_LENGTH', hop_length or chunk_length // 2)
-    set_gin_constant('CHANNELS', channels)
-    set_gin_constant('DEVICE', device or "cpu")
+    with GinEnv(paths=[ad.ACIDS_DATASET_CUSTOM_CONFIG_PATH, ad.ACIDS_DATASET_CONFIG_PATH]):
+        # parse gin constants
+        import_database_configs()
+        gin.add_config_file_search_path(Path(__file__).parent / "configs")
+        gin.add_config_file_search_path(path)
+        set_gin_constant('SAMPLE_RATE', sample_rate)
+        if chunk_length is not None:
+            set_gin_constant('CHUNK_LENGTH', chunk_length)
+            set_gin_constant('HOP_LENGTH', hop_length or chunk_length // 2)
+        set_gin_constant('CHANNELS', channels)
+        set_gin_constant('DEVICE', device or "cpu")
 
-    # parse features
-    features = features or []
-   
-    if os.path.splitext(config)[-1] != ".gin":
-        config += ".gin"
-    gin.parse_config_files_and_bindings([config], override)
-    path = list(map(Path, checklist(path)))
-    out = out or get_default_output_path(path)
+        # parse features
+        features = features or []
+    
+        if os.path.splitext(config)[-1] != ".gin":
+            config += ".gin"
+        gin.parse_config_files_and_bindings([config], override)
+        path = list(map(Path, checklist(path)))
+        out = out or get_default_output_path(path)
 
-    operative_features = parse_features()
-    operative_features = append_meta_regexp(operative_features, meta_regexp=meta_regexp)
+        operative_features = parse_features()
+        operative_features = append_meta_regexp(operative_features, meta_regexp=meta_regexp)
 
-    # append additional features
-    for i, f in enumerate(features):
-        if isinstance(f, str):
-            if os.path.splitext(f)[1] == "": f += ".gin"
-            if os.path.exists(f):
-                gin.add_config_file_search_path(Path(f).parent)
-            try:
-                gin.parse_config_file(f)
-            except TypeError as e:
-                print('[error] problem parsing configuration %s'%f)
-                raise e
-            operative_features.extend(feature_from_gin_config(f))
-        elif isinstance(f, AcidsDatasetFeature):
-            operative_features.append(f)
+        # append additional features
+        for i, f in enumerate(features):
+            if isinstance(f, str):
+                if os.path.splitext(f)[1] == "": f += ".gin"
+                if os.path.exists(f):
+                    gin.add_config_file_search_path(Path(f).parent)
+                try:
+                    gin.parse_config_file(f)
+                except TypeError as e:
+                    print('[error] problem parsing configuration %s'%f)
+                    raise e
+                operative_features.extend(feature_from_gin_config(f))
+            elif isinstance(f, AcidsDatasetFeature):
+                operative_features.append(f)
 
-    print(operative_features)
+        print(operative_features)
 
-    writer_class = get_writer_class(filters=flt, exclude=exclude)
-    writer = writer_class(path, 
-                          out, 
-                          features=operative_features, 
-                          check=check, 
-                          force=force, 
-                          waveform=waveform, 
-                          max_db_size=max_db_size, 
-                          log=log) 
-    writer.build(compact=compact)
+        writer_class = get_writer_class(filters=flt, exclude=exclude)
+        writer = writer_class(path, 
+                            out, 
+                            features=operative_features, 
+                            check=check, 
+                            force=force, 
+                            waveform=waveform, 
+                            max_db_size=max_db_size, 
+                            log=log) 
+        writer.build(compact=compact)
 
 def main(argv):
     preprocess_dataset(

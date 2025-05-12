@@ -419,7 +419,7 @@ class LMDBWriter(object):
                 for f in features: 
                     if f.feature_name in existing_features_names and not overwrite:
                         continue
-                    if (f.feature_name not in feature_hash) and f.hash_from_feature:
+                    if (f.feature_name not in feature_hash):
                         feature_hash[f.feature_name] = {}
                     feature_status[f.feature_name] = StatusBytes()
                     iterator = cls.iter_fragment_keys(txn) if not show_status else tqdm.tqdm(cls.iter_fragment_keys(txn), desc="computing feature %s"%f.feature_name, total=metadata['n_chunks'])

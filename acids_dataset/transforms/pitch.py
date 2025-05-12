@@ -49,7 +49,7 @@ class BasicPitch(Transform):
     @torch.no_grad
     def __call__(self, waveform, sr = None, **kwargs):
         if type(waveform) != torch.Tensor:
-            waveform = torch.from_numpy(waveform).to(self.device)
+            waveform = torch.from_numpy(waveform).to(device=self.device, dtype=torch.float32)
         sr = sr or self.sr
         if self.sr != 22050:
             waveform = torchaudio.functional.resample(waveform=waveform,

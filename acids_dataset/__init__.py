@@ -1,10 +1,12 @@
 from pathlib import Path
 import yaml
 import gin
+import os
 gin.enter_interactive_mode()
 
+
 ACIDS_DATASET_CONFIG_PATH = Path(__file__).parent / "configs"
-ACIDS_DATASET_CUSTOM_CONFIG_PATH = Path(__file__).parent.parent / "custom_configs"
+ACIDS_DATASET_CUSTOM_CONFIG_PATH = Path(os.getcwd()) / "ad_configs"
 TRANSFORM_GIN_PATH = ACIDS_DATASET_CONFIG_PATH / "transforms"
 FEATURES_GIN_PATH = ACIDS_DATASET_CONFIG_PATH / "features"
 
