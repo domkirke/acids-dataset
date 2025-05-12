@@ -69,11 +69,12 @@ test_signals = {
 def test_transform_with_audio(transform, sr, t=2.0, n_samples=8):
     out_dir = Path(__file__).parent / "outs" / "transforms" / f"{transform.__name__}" / str(sr)
     os.makedirs(out_dir, exist_ok=True)
+    args = additional_args.get(transform.__name__, tuple())
     for k, v in test_signals.items():
         outs = []
         for _ in range(n_samples):
             x = v(t, sr)
-            tr = transform(sr=sr)
+            tr = transform(*args, sr=sr)
             out = tr(x)
             if tr.type_hash(out) not in [tr.input_types.torch, tr.input_types.numpy]:
                 pytest.skip("output is not audio")

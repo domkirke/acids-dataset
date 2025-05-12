@@ -1,9 +1,10 @@
 import audiomentations as ta
+import torch
 import gin.torch
 import inspect
 from .base import Transform
 from . import misc
-from ..utils import get_subclasses_from_package
+from ..utils import get_subclasses_from_package, pad
 import numpy as np
 
 __bypassed_audiomentations = [
@@ -23,9 +24,10 @@ def build_audiomentation_wrapper(cls):
         obj_class = cls
         takes_as_input = Transform.input_types.numpy
         dont_export_to_gin_config = ["self", "name", "args", "kwargs", "sample_rate"]
-        def __init__(self, *args, p=None, **kwargs):
+        def __init__(self, *args, p=None, pad_mode="zero", **kwargs):
             transform_args = {'sr': kwargs.get('sr'), 'name': kwargs.get('name')}
             super().__init__(p=None, **transform_args)
+            self.pad_mode = pad_mode
             if p is None: p = 1.
             aug_kwargs = self.get_cls_kwargs(self.obj_class, kwargs)
             if "sample_rate" in list(self.init_signature().parameters):
@@ -47,15 +49,27 @@ def build_audiomentation_wrapper(cls):
                     cls_kwargs[param] = kwargs[param]
             return cls_kwargs
 
+        def collate(self, output_list):
+            try:
+                return np.stack(output_list, axis=0)
+            except: 
+                return output_list
+
+        def _apply_obj(self, x):
+            out = self._obj(x, sample_rate=self.sr)
+            if -1 in map(lambda x: x / abs(x), out.strides):
+                out = np.ascontiguousarray(out)
+            return out
+
         def apply(self, x):
             if x.ndim == 1: 
                 out = self._obj(x[None], sample_rate=self.sr)
             else: 
                 if self._obj.supports_multichannel and x.ndim <= 3:
                     if x.ndim == 2:
-                        out = self._obj(x.reshape(-1, x.shape[-1]), sample_rate=self.sr)
+                        out = self._apply_obj(x.reshape(-1, x.shape[-1]))
                     elif x.ndim == 3:
-                        out = np.stack([self._obj(x_tmp, sample_rate=self.sr) for x_tmp in x])
+                        out = self.collate([self._apply_obj(x_tmp) for x_tmp in x])
                 else:
                     batch_size = x.shape[:-1]
                     outs = []

@@ -134,6 +134,8 @@ class Transform():
             return self.cast_table[self.type_hash(arg), self.takes_as_input](arg)
 
     def _parse_output(self, output, input):
+        if isinstance(output, list):
+            return [self.cast_table[(self.type_hash(output[i]), self.type_hash(input[i]))](output[i]) for i in range(len(output))]
         out = self.cast_table[(self.type_hash(output), self.type_hash(input))](output)
         if self.type_hash(out) == self.input_types.torch:
             out = out.to(input)

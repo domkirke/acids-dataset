@@ -203,6 +203,8 @@ def pad(
         pad_mode,
         discard_if_lower_than: None | float | int = None
     ):
+    if isinstance(pad_mode, str):
+        pad_mode = getattr(PadMode, pad_mode.upper())
     if pad_mode == PadMode.DISCARD:
         return None
     if discard_if_lower_than is not None:
