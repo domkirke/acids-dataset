@@ -1,4 +1,6 @@
 import importlib
+from types import ModuleType
+import dill
 import copy
 import inspect, pkgutil
 import logging
@@ -12,7 +14,7 @@ import torch
 import torchaudio
 import gin
 
-from . import FEATURES_GIN_PATH
+from . import FEATURES_GIN_PATH, TRANSFORM_GIN_PATH
 
 _CACHED_MODULES = {}
 _VALID_BACKENDS = ['numpy', 'torch', 'jax']
@@ -37,15 +39,18 @@ def load_file(file_path):
 
 
 class GinEnv(object):
-    def __init__(self, paths=[], configs=[], bindings=[]):
+    def __init__(self, paths=[], configs=[], bindings=[], clear:bool = True):
         self._paths = checklist(paths)
         self._configs = checklist(configs)
         self._bindings = checklist(bindings)
+        self.keep_constants = True
         self._dict = None
+        self._clear = clear 
 
     def _copy_gin_dict(self):
         gin_dict = {}
         for k, v in gin.config.__dict__.items(): 
+            if isinstance(v, ModuleType) or callable(v): continue
             try:
                 if k == "_SCOPE_MANAGER":
                     gin_dict[k] = {'active_scopes': v.active_scopes,
@@ -54,12 +59,18 @@ class GinEnv(object):
                 else:
                     gin_dict[k] = copy.deepcopy(v)
             except: 
-                gin_dict[k] = v
+                try:
+                    gin_dict[k] = dill.dumps(v)
+                except: 
+                    gin_dict[k] = v
         return gin_dict
     
     def __enter__(self):
         self._dict = self._copy_gin_dict()
-        gin.clear_config()
+        if self._clear:
+            gin.clear_config()
+        if self.keep_constants: 
+            gin.config._CONSTANTS = self._dict['_CONSTANTS']
         for p in self._paths: 
             gin.add_config_file_search_path(p)
         if len(self._configs) or len(self._bindings):
@@ -71,7 +82,9 @@ class GinEnv(object):
         scope_manager = gin.config._ScopeManager()
         scope_manager.__dict__.update(self._dict['_SCOPE_MANAGER'])
         self._dict['_SCOPE_MANAGER'] = scope_manager
-        gin.config.__dict__.clear()
+        for k, v in self._dict.items():
+            if isinstance(v, bytes):
+                self._dict[k] = dill.loads(v)
         gin.config.__dict__.update(self._dict)
 
 
@@ -157,13 +170,32 @@ def parse_features(features=None, device=None, add_args=None):
             set_gin_constant("DEVICE", device)
         return [f(*add_args[i][0], **add_args[i][1]) for i, f in enumerate(checklist(features))]
 
+
+
 def feature_from_gin_config(config_path, add_args=None):
     config_path = checklist(config_path)
     for i in range(len(config_path)):
         if not os.path.splitext(config_path[i])[1] == ".gin": config_path[i] += ".gin"
-    with GinEnv(configs=config_path, paths=FEATURES_GIN_PATH):
+    with GinEnv(configs=config_path, paths=FEATURES_GIN_PATH, clear=False):
         feature = parse_features(add_args=add_args)
     return feature
+
+
+
+@gin.configurable(module="transforms")
+def parse_transform(transform, add_args=None):
+    return transform(*add_args[0], **add_args[1])
+
+
+def transform_from_gin_config(config_path, add_args=None):
+    config_path = checklist(config_path)
+    if add_args is None: 
+        add_args = (tuple(), dict())
+    for i in range(len(config_path)):
+        if not os.path.splitext(config_path[i])[1] == ".gin": config_path[i] += ".gin"
+    with GinEnv(configs=config_path, paths=TRANSFORM_GIN_PATH, clear=False):
+        transform = parse_transform(add_args=add_args)
+    return transform
 
 
 def get_available_cuda_device():
@@ -284,9 +316,10 @@ def get_subclasses_from_package(package, filter_class, exclude = []):
     return transform_list
 
 
-def set_gin_constant(constant, value):
+def set_gin_constant(constant, value, replace: bool = True):
     if constant in gin.config._CONSTANTS:
-        gin.config._CONSTANTS[constant] = value
+        if replace:
+            gin.config._CONSTANTS[constant] = value
     else:
         gin.constant(constant, value)
 
@@ -299,7 +332,7 @@ def parse_config_pattern(pattern: str, **kwargs):
 
 def generate_config_from_obj(transform_class, config_path, pattern):
     gin_args = []
-    transform_args = dict(transform_class.init_signature().parameters)
+    transform_args = dict(transform_class.init_signature())
     for param_name, param in transform_args.items():
         if param_name in transform_class.dont_export_to_gin_config: continue
         if param_name == "sr": 

@@ -9,8 +9,13 @@ import sys
 import sys; sys.path.append(str(Path(__file__).parent.parent))
 from acids_dataset import get_writer_class_from_path, get_metadata_from_path, get_fragment_class_from_path
 
+def import_flags():
+    flags.DEFINE_string('path', None, 'dataset path', required=True)
+    flags.DEFINE_boolean('files', False, 'list files within dataset')
+    flags.DEFINE_boolean('check_metadata', False, 'check metadata discrepencies in dataset')
 
 def main(argv):
+    FLAGS = flags.FLAGS
     dataset_path = Path(FLAGS.path)
     writer_class = get_writer_class_from_path(FLAGS.path)
     metadata = get_metadata_from_path(FLAGS.path)
@@ -43,12 +48,7 @@ def main(argv):
                     print('-------\n[WARNING] Found metadata discrepencies :')
                     for k, v in missing_metadata.items():
                         print(f"{k}: {v} missing")
-
     
 if __name__ == "__main__":
-
-    FLAGS = flags.FLAGS
-    flags.DEFINE_string('path', None, 'dataset path', required=True)
-    flags.DEFINE_boolean('files', False, 'list files within dataset')
-    flags.DEFINE_boolean('check_metadata', False, 'check metadata discrepencies in dataset')
+    import_flags()
     app.run(main)

@@ -4,7 +4,8 @@ from absl import app
 AVAILABLE_SCRIPTS = [
     'preprocess', 
     'update',
-    'info'
+    'info',
+    'add_embedding'
 ]
 
 
@@ -12,7 +13,7 @@ def help():
     print(f"""usage: acids-dataset [ {' | '.join(AVAILABLE_SCRIPTS)} ]
 
 positional arguments:
-  command     Command to launch with rave. valid commands : {' | '.join(AVAILABLE_SCRIPTS)} 
+  command     Command to launch with acids-dataset. valid commands : {' | '.join(AVAILABLE_SCRIPTS)} 
 """)
     exit()
 
@@ -27,18 +28,22 @@ def main():
 
     if command == 'preprocess':
         from acids_dataset import preprocess
+        preprocess.import_flags()
         sys.argv[0] = preprocess.__name__
         app.run(preprocess.main)
     if command == 'update':
         from acids_dataset import update
+        update.import_flags()
         sys.argv[0] = update.__name__
         app.run(update.main)
     elif command == 'info':
         from acids_dataset import info 
+        info.import_flags()
         sys.argv[0] = info.__name__
         app.run(info.main)
     elif command == "add_embedding": 
         from acids_dataset import add_embedding
+        add_embedding.import_flags()
         sys.argv[0] = add_embedding.__name__
         app.run(add_embedding.main)
         

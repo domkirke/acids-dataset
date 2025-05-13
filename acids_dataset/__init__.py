@@ -10,9 +10,14 @@ ACIDS_DATASET_CUSTOM_CONFIG_PATH = Path(os.getcwd()) / "ad_configs"
 TRANSFORM_GIN_PATH = ACIDS_DATASET_CONFIG_PATH / "transforms"
 FEATURES_GIN_PATH = ACIDS_DATASET_CONFIG_PATH / "features"
 
-def import_database_configs():
+def dataset_config_paths():
+    return [ACIDS_DATASET_CONFIG_PATH, ACIDS_DATASET_CUSTOM_CONFIG_PATH]
+
+def import_database_configs(*add_paths):
     gin.add_config_file_search_path(ACIDS_DATASET_CONFIG_PATH)
     gin.add_config_file_search_path(ACIDS_DATASET_CUSTOM_CONFIG_PATH)
+    for a in add_paths: 
+        gin.add_config_file_search_path(a)
 
 from . import utils
 from . import transforms
@@ -25,8 +30,8 @@ from . import parsers
 from . import features
 
 features.check_feature_configs(features, FEATURES_GIN_PATH)
-def get_feature_config_path(): 
-    return FEATURES_GIN_PATH
+def get_feature_config_paths(): 
+    return [FEATURES_GIN_PATH]
 
 from . import fragments
 

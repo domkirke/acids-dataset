@@ -130,6 +130,8 @@ class LMDBWriter(object):
         dataset_path = dataset_path or self.dataset_path
         self._files = []
         for path in checklist(self.dataset_path):
+            if not path.exists(): 
+                raise FileNotFoundError("%s folder does not exist."%path)
             self._files.extend(dir_parser(path, valid_exts = valid_exts, flt=filters, exclude=exclude))
         if len(self._files) == 0:
             raise RuntimeError(f'no valid files were found in {dataset_path} with flt={filters} and exclude={exclude}.')
@@ -466,7 +468,7 @@ class LMDBWriter(object):
                         parsed_time = cls._add_file_to_lmdb(txn, parser, features, feature_hash, feature_status, key_generator, fragment_class, data_path)
                         n_seconds += parsed_time
                 n_chunks = key_generator.current_idx
-                metadata.update(n_seconds=n_seconds, n_chunks=n_chunks, features={cls.get_feature_name(f): str(f) for f in features})
+            metadata.update(n_seconds=n_seconds, n_chunks=n_chunks, features={cls.get_feature_name(f): str(f) for f in features})
 
             cls._add_feature_hash_to_lmdb(txn, feature_hash)
             cls._add_features_to_lmdb(txn, features)

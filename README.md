@@ -226,6 +226,42 @@ update_dataset(
 
 ##### By default, `update` will open the database with 1.1 * size of the database. If you plan to add havy audio / features, do not forget to also update `--max_db_size`!!
 
+## Computing embedding from a TorchScript model
+
+A special script, `add_embedding`, provides a very handy way to compute embeddings from a scripted PyTorch model. For example, if you have a RAVE .ts file, you can populate the latent embeddings and  in your database through cuda (replace by `cpu` or `mps` in case) using:
+
+```bash
+acids-dataset add_embedding --path replace/path/to/db--module replace/path/to/ts --method encode --device cuda:0
+```
+
+An interesting feature of `add_embedding` is also the ability to compute "augmented“ embeddings, batching original data with transforms that can augment the data. This is typically very useful for self-supervised learning.  
+
+```bash
+acids-dataset add_embedding --path replace/path/to/db--module replace/path/to/ts --transform pitchshift --transform pitchshift --transform pitchshift --method encode --device cuda:0
+```
+
+Similarly, a python backend is provided
+
+```python
+from acids_dataset import add_emebdding
+
+# load your model here...
+model = Model()
+
+# you can also directly populate with additional transforms. 
+# different transforms will be batched during import. 
+
+transforms = [adt.PitchShift() for i in range(4)]
+
+add_emebdding(
+  path="path/to/dataset", 
+  module=module, 
+  module_path=None, # use path to directly load a .ts
+  transforms=transforms, 
+  module_sr=None, # acids_dataset will try to retrieve the sr attribute ; if not, provide it to avoid problems
+  device="cpu"
+)
+```
 
 ### Get information
 

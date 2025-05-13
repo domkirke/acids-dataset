@@ -30,7 +30,7 @@ def build_audiomentation_wrapper(cls):
             self.pad_mode = pad_mode
             if p is None: p = 1.
             aug_kwargs = self.get_cls_kwargs(self.obj_class, kwargs)
-            if "sample_rate" in list(self.init_signature().parameters):
+            if "sample_rate" in list(inspect.signature(self.obj_class.__init__).parameters):
                 aug_kwargs['sample_rate'] = kwargs.get('sr')
             self._obj = self.obj_class(*args, p=p, **aug_kwargs)
             
@@ -39,7 +39,9 @@ def build_audiomentation_wrapper(cls):
 
         @classmethod
         def init_signature(cls):
-            return inspect.signature(cls.obj_class.__init__)
+            obj_params = dict(inspect.signature(cls.obj_class.__init__).parameters)
+            obj_params.update(sr=inspect.Parameter("sr", inspect.Parameter.KEYWORD_ONLY))
+            return obj_params
 
         def get_cls_kwargs(self, aug_cls, kwargs):
             sig = inspect.signature(aug_cls.__init__)

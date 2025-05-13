@@ -27,9 +27,9 @@ with open("README.md", "r") as readme:
 with open("requirements.txt", "r") as requirements:
     requirements = requirements.read()
 
-extra_requirements = {
-    'after': ["pretty-midi"]
-}
+# extra_requirements = {
+#     'after': ["pretty-midi"]
+# }
 
 __VERSION__ =  __VERSION__ or get_latest_git_tag()
 
@@ -56,22 +56,22 @@ setuptools.setup(
     name="acids-dataset",
     version=__VERSION__,  # type: ignore
     author="Axel Chemla--Romeu-Santos, Nils Demerlé, Antoine Caillon",
-    author_email="demerle@ircam.fr, chemla@ircam.fr",
+    author_email="chemla@ircam.fr,demerle@ircam.fr",
     description="a pre-processed dataset library for generative audio ML",
     long_description=readme,
     long_description_content_type="text/markdown",
-    packages = setuptools.find_packages() + ['acids_dataset/configs', 'acids_dataset/configs/features'],
+    packages = setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
     # package_data = get_config_package_data(),
-    package_data = {"": ["*.gin"], "acids_dataset.transforms.basic_pitch_torch": ['assets/*.pth']},
+    package_data = {"": ["configs/*.gin"], "acids_dataset.transforms.basic_pitch_torch": ['assets/*.pth']},
     entry_points={"console_scripts": [
-        "acids-dataset = scripts.cli:main",
+        "acids-dataset = acids_dataset.cli:main",
     ]},
     install_requires=requirements.split("\n"),
-    python_requires='>=3.10',
+    python_requires='>=3.11',
     include_package_data=True,
 )

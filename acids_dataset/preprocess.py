@@ -10,7 +10,7 @@ from absl import flags, app
 import sys
 import sys; sys.path.append(str(Path(__file__).parent.parent))
 import acids_dataset as ad
-from acids_dataset import import_database_configs
+from acids_dataset import import_database_configs, get_feature_config_paths
 from acids_dataset.fragments.acids import AcidsFragment
 # for retro-compatibility
 AcidsFragment.force_array_reshape = False
@@ -18,6 +18,25 @@ from acids_dataset.writers import get_writer_class
 from acids_dataset.features import AcidsDatasetFeature, append_meta_regexp
 from acids_dataset.utils import feature_from_gin_config, parse_features, checklist, set_gin_constant, GinEnv
 
+def import_flags():
+    flags.DEFINE_multi_string('path', None, help="dataset path", required=True)
+    flags.DEFINE_string('out', None, help="parsed dataset location")
+    flags.DEFINE_string('config', "default.gin", help="dataset config")
+    flags.DEFINE_string('device', "cpu", help="device for feature computation")
+    flags.DEFINE_multi_string('feature', [], help="config files")
+    flags.DEFINE_multi_string('filter', [], help="wildcard to filter target files")
+    flags.DEFINE_multi_string('exclude', [], help="wildcard to exclude target files")
+    flags.DEFINE_multi_string('meta_regexp', [], help="additional regexp for metadata parsing")
+    flags.DEFINE_multi_string('override', [], help="additional overridings for configs")
+    flags.DEFINE_integer('sample_rate', 44100, help="sample rate")
+    flags.DEFINE_integer('channels', 1, help="number of audio channels")
+    flags.DEFINE_boolean('check', True, help="has interactive mode for data checking.")
+    flags.DEFINE_boolean('force', False, help="force dataset preprocessing if folder already exists")
+    flags.DEFINE_float('max_db_size', 100, help="maximum database size")
+    flags.DEFINE_integer('chunk_length', None, help="number of samples per chunk")
+    flags.DEFINE_boolean('waveform', True, help="no waveform parsing")
+    flags.DEFINE_boolean('compact', False, help="create compact version of lmdb database")
+    flags.DEFINE_string('log', None, help="log file")
 
 def get_default_output_path(path):
     return (Path(".") / f"{path.stem}_preprocessed").resolve().absolute()
@@ -31,7 +50,7 @@ def preprocess_dataset(
     check=False, 
     chunk_length: int = None,
     hop_length: int = None, 
-    sample_rate = 44100,
+    sample_rate = None,
     channels = 1,
     flt = [],
     exclude = [],
@@ -44,59 +63,48 @@ def preprocess_dataset(
     compact: bool = False, 
     log: str | None = None
     ):
-    with GinEnv(paths=[ad.ACIDS_DATASET_CUSTOM_CONFIG_PATH, ad.ACIDS_DATASET_CONFIG_PATH]):
-        # parse gin constants
-        import_database_configs()
-        gin.add_config_file_search_path(Path(__file__).parent / "configs")
-        gin.add_config_file_search_path(path)
-        set_gin_constant('SAMPLE_RATE', sample_rate)
-        if chunk_length is not None:
-            set_gin_constant('CHUNK_LENGTH', chunk_length)
-            set_gin_constant('HOP_LENGTH', hop_length or chunk_length // 2)
-        set_gin_constant('CHANNELS', channels)
-        set_gin_constant('DEVICE', device or "cpu")
+    import_database_configs(*path)
+    if os.path.splitext(config)[-1] != ".gin":
+        config += ".gin"
+    gin.parse_config_files_and_bindings([config], override, finalize_config=False)
 
-        # parse features
-        features = features or []
-    
-        if os.path.splitext(config)[-1] != ".gin":
-            config += ".gin"
-        gin.parse_config_files_and_bindings([config], override)
-        path = list(map(Path, checklist(path)))
-        out = out or get_default_output_path(path)
+    path = list(map(Path, checklist(path)))
+    # parse features
+    features = features or []
+    out = out or get_default_output_path(path)
 
-        operative_features = parse_features()
-        operative_features = append_meta_regexp(operative_features, meta_regexp=meta_regexp)
+    if chunk_length:
+        set_gin_constant('CHUNK_LENGTH', chunk_length)
+        set_gin_constant('HOP_LENGTH', hop_length or chunk_length // 2)
+    if sample_rate: set_gin_constant('SAMPLE_RATE', sample_rate)
+    set_gin_constant('CHANNELS', channels)
+    set_gin_constant('DEVICE', device or "cpu")
 
-        # append additional features
-        for i, f in enumerate(features):
-            if isinstance(f, str):
-                if os.path.splitext(f)[1] == "": f += ".gin"
-                if os.path.exists(f):
-                    gin.add_config_file_search_path(Path(f).parent)
-                try:
-                    gin.parse_config_file(f)
-                except TypeError as e:
-                    print('[error] problem parsing configuration %s'%f)
-                    raise e
-                operative_features.extend(feature_from_gin_config(f))
-            elif isinstance(f, AcidsDatasetFeature):
-                operative_features.append(f)
+    # append additional features
+    operative_features = parse_features()
+    operative_features = append_meta_regexp(operative_features, meta_regexp=meta_regexp)
+    for i, f in enumerate(features):
+        if isinstance(f, str):
+            operative_features.extend(feature_from_gin_config(f))
+        elif isinstance(f, AcidsDatasetFeature):
+            operative_features.append(f)
 
-        print(operative_features)
-
-        writer_class = get_writer_class(filters=flt, exclude=exclude)
-        writer = writer_class(path, 
-                            out, 
-                            features=operative_features, 
-                            check=check, 
-                            force=force, 
-                            waveform=waveform, 
-                            max_db_size=max_db_size, 
-                            log=log) 
-        writer.build(compact=compact)
+    gin.finalize() 
+    writer_class = get_writer_class(filters=flt, exclude=exclude)
+    writer = writer_class(path, 
+                        out, 
+                        features=operative_features, 
+                        check=check, 
+                        force=force, 
+                        waveform=waveform, 
+                        max_db_size=max_db_size, 
+                        log=log) 
+    writer.build(compact=compact)
 
 def main(argv):
+
+    FLAGS = flags.FLAGS
+
     preprocess_dataset(
         FLAGS.path, 
         out = FLAGS.out, 
@@ -119,27 +127,7 @@ def main(argv):
     )
 
 if __name__ == "__main__":
-
-    FLAGS = flags.FLAGS
-    flags.DEFINE_multi_string('path', None, help="dataset path", required=True)
-    flags.DEFINE_string('out', None, help="parsed dataset location")
-    flags.DEFINE_string('config', "default.gin", help="dataset config")
-    flags.DEFINE_string('device', "cpu", help="device for feature computation")
-    flags.DEFINE_multi_string('feature', [], help="config files")
-    flags.DEFINE_multi_string('filter', [], help="wildcard to filter target files")
-    flags.DEFINE_multi_string('exclude', [], help="wildcard to exclude target files")
-    flags.DEFINE_multi_string('meta_regexp', [], help="additional regexp for metadata parsing")
-    flags.DEFINE_multi_string('override', [], help="additional overridings for configs")
-    flags.DEFINE_integer('sample_rate', 44100, help="sample rate")
-    flags.DEFINE_integer('channels', 1, help="number of audio channels")
-    flags.DEFINE_boolean('check', True, help="has interactive mode for data checking.")
-    flags.DEFINE_boolean('force', False, help="force dataset preprocessing if folder already exists")
-    flags.DEFINE_float('max_db_size', 100, help="maximum database size")
-    flags.DEFINE_integer('chunk_length', None, help="number of samples per chunk")
-    flags.DEFINE_boolean('waveform', True, help="no waveform parsing")
-    flags.DEFINE_boolean('compact', False, help="create compact version of lmdb database")
-    flags.DEFINE_string('log', None, help="log file")
-
+    import_flags() 
     app.run(main)
 
 __all__ = ['preprocess_dataset']

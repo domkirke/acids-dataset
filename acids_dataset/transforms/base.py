@@ -94,14 +94,14 @@ class Transform():
 
     @classmethod
     def init_signature(cls):
-        return inspect.signature(cls.__init__)
+        return dict(inspect.signature(cls.__init__).parameters)
 
 
     @classmethod
     def write_gin_config(cls, config_path):
         gin_name = f"transforms.{cls.__name__}"
         gin_args = []
-        transform_args = dict(cls.init_signature().parameters)
+        transform_args = cls.init_signature()
         for param_name, param in transform_args.items():
             if param_name in cls.dont_export_to_gin_config: continue
             if param_name == "sr": 

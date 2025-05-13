@@ -39,6 +39,7 @@ class CQT(AcidsDatasetFeature):
             **kwargs
     ):
         self.cqt = librosa.cqt
+        self.sr = sr
         self.kwargs = kwargs
         super().__init__(name=name, hash_from_feature=hash_from_feature, device=device)
 
@@ -52,7 +53,7 @@ class CQT(AcidsDatasetFeature):
 
     @property
     def default_feature_name(self):
-        return f"cqt_{self.kwargs.get("n_bins", 84)}"
+        return f"cqt_{self.kwargs.get('n_bins', 84)}"
 
     def from_fragment(self, fragment, write: bool = True):
         data = fragment.get_audio("waveform")

@@ -1,3 +1,8 @@
+CHUNK_LENGTH = 524288
+HOP_LENGTH = 262144
+SAMPLE_RATE = 44100
+CHANNELS = 1
+
 RawParser:
     chunk_length = 524288
     hop_length = 262144
