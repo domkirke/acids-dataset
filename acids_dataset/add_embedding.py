@@ -26,16 +26,16 @@ def import_flags():
     flags.DEFINE_boolean('check', True, help="recomputes the feature if already present in the dataset")
 
 def add_embedding_to_dataset(
-    path, 
-    module: nn.Module = None, 
-    module_path: str | Path | None = None,
-    module_sr: int | None = None,
-    method: str = "forward",
-    transforms: List[str | adt.Transform] = [],
-    name: str | None = None,
-    device: str | None = None,
-    check: bool = False,
-    overwrite: bool = False,
+        path, 
+        module: nn.Module = None, 
+        module_path: str | Path | None = None,
+        module_sr: int | None = None,
+        method: str = "forward",
+        transforms: List[str | adt.Transform] = [],
+        name: str | None = None,
+        device: str | None = None,
+        check: bool = False,
+        overwrite: bool = False,
     ):
 
     path = Path(path)
@@ -98,7 +98,10 @@ def main(argv):
         check=FLAGS.check, 
         overwrite=FLAGS.overwrite
     )
-        
+
 
 if __name__ == "__main__":
     app.run(main)
+
+
+__name__ = "add_embedding"

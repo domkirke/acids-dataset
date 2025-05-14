@@ -88,6 +88,8 @@ def get_feature_names_from_path(path):
 
 from . import writers
 from . import datasets
+
 from .preprocess import *
 from .update import *
+from .add_embedding import *
 from .utils import GinEnv

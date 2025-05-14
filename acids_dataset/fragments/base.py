@@ -152,14 +152,18 @@ class AudioFragment(object):
     def get_audio(self, key: str):
         if not hasattr(self, "output_type"):
             raise KeyError('cannot perform get_audio : fragment does not have output_type field')
-        bformat = getattr(self, "bformat", "int16")
+        # bformat = getattr(self, "bformat", "int16")
+
+        buf = self.get_buffer(key)
+        dtype_decode = getattr(self, "PRECISION_TO_DTYPE")[buf.precision]
+
         if self.output_type == "numpy":
             dtype = np.float64
         elif self.output_type == "torch":
             dtype = torch.float32
-        if bformat == "int16":
+        if dtype_decode == "int16":
             hook = lambda x: x / (2**15 - 1)
-        elif bformat in ["int32", "int64"]:
+        elif dtype_decode in ["int32", "int64"]:
             raise NotImplementedError()
         else:
             hook = lambda x: x

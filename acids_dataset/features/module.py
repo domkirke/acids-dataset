@@ -23,8 +23,17 @@ class ModuleEmbedding(AcidsDatasetFeature):
                  batch_transforms: bool = True,
                  sr: int | None = None,
                  retain_module: bool = False,
+                 name: str = None,
                  **kwargs):
-        super().__init__(**kwargs)
+        if name is None: 
+            if module is None: 
+                name = os.path.splitext(os.path.basename(module_path))[0]
+            elif module_path is None: 
+                if isinstance(module, torch.jit.RecursiveScriptModule):
+                    name = module.original_name.lower()
+                else:
+                    name = type(module).__name__
+        super().__init__(name=name, **kwargs)
         self.sr = sr
         self.retain_module = retain_module
         self._init_module(module, module_path, module_sr, method, method_args, method_kwargs, self.device)
@@ -69,8 +78,8 @@ class ModuleEmbedding(AcidsDatasetFeature):
         assert hasattr(self._module, method), "method %s not in %s"%(method, module)
         assert callable(getattr(self._module, method)), "method %s is not callable"%(method)
         self._method = method
-        self._method_args = tuple()
-        self._method_kwargs = dict()
+        self._method_args = method_args
+        self._method_kwargs = method_kwargs
         self._module = self._module.to(device)
         assert hasattr(self._module, self._method), "module does not have callback %s"%("forward")
         assert callable(getattr(self._module, self._method)), "attribtue %s is not a method"%self._method
