@@ -64,9 +64,6 @@ def preprocess_dataset(
     log: str | None = None
     ):
     import_database_configs(*path)
-    if os.path.splitext(config)[-1] != ".gin":
-        config += ".gin"
-    gin.parse_config_files_and_bindings([config], override, finalize_config=False)
 
     path = list(map(Path, checklist(path)))
     # parse features
@@ -79,6 +76,10 @@ def preprocess_dataset(
     if sample_rate: set_gin_constant('SAMPLE_RATE', sample_rate)
     set_gin_constant('CHANNELS', channels)
     set_gin_constant('DEVICE', device or "cpu")
+
+    if os.path.splitext(config)[-1] != ".gin":
+        config += ".gin"
+    gin.parse_config_files_and_bindings([config], override, finalize_config=False)
 
     # append additional features
     operative_features = parse_features()

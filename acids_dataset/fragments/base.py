@@ -261,3 +261,22 @@ class AudioFragment(object):
     def has_metadata(self, name):
         return name in dict_from_buffer(self.ae.buffers["metadata"])
 
+    @property 
+    def buffers(self):
+        return dict(self.ae.buffers)
+
+    @property
+    def description(self):
+        desc = f"{type(self).__name__}(\n"
+        for k, v in self.buffers.items():
+            if k == "metadata":
+                metadata = self.get_metadata()
+                metadata_desc = f"\n\t\t".join(f"{k}: {v}" for k, v in metadata.items())
+                desc += f"\t{k}: \n\t\t{metadata_desc}\n"
+            else:
+                buffer_desc = f"\t{k}:\n\t\tshape: {v.shape}\n\t\tsampling_rate: {v.sampling_rate}\n"
+                desc += buffer_desc
+        desc += ")"
+        return desc
+
+

@@ -13,6 +13,8 @@ def import_flags():
     flags.DEFINE_string('path', None, 'dataset path', required=True)
     flags.DEFINE_boolean('files', False, 'list files within dataset')
     flags.DEFINE_boolean('check_metadata', False, 'check metadata discrepencies in dataset')
+    flags.DEFINE_multi_integer('idx', [], 'parses fragment with idx %s')
+    flags.DEFINE_multi_string('key', [], 'parses fragment with key %s')
 
 def main(argv):
     FLAGS = flags.FLAGS
@@ -48,6 +50,23 @@ def main(argv):
                     print('-------\n[WARNING] Found metadata discrepencies :')
                     for k, v in missing_metadata.items():
                         print(f"{k}: {v} missing")
+    if len(FLAGS.idx) > 0 or len(FLAGS.key) > 0:
+        loader = writer_class.loader(FLAGS.path)
+        for i in FLAGS.idx : 
+            print('\n--INDEX %d :'%i)
+            try: 
+                fg = loader[i]
+                print(fg.description)
+            except IndexError:
+                print('index %d not in dataset')
+        for k in FLAGS.key:
+            print('\n--KEY %s : '%k)
+            try:
+                fg = loader[k]
+                print(fg.description)
+            except IndexError:
+                print('key %s not in dataset')
+
     
 if __name__ == "__main__":
     import_flags()

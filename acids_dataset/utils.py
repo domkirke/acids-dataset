@@ -332,7 +332,7 @@ def parse_config_pattern(pattern: str, **kwargs):
 
 def generate_config_from_obj(transform_class, config_path, pattern):
     gin_args = []
-    transform_args = dict(transform_class.init_signature())
+    transform_args = dict(transform_class.init_signature().parameters)
     for param_name, param in transform_args.items():
         if param_name in transform_class.dont_export_to_gin_config: continue
         if param_name == "sr": 

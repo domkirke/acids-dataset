@@ -278,7 +278,7 @@ acids_dataset/info.py:
   --path: dataset path
 ```
 
-You can also add the `--files` to list all the parsed audio files, or the `--check_metadata` flag to check missing metadata. See the full available options by running `acids-dataset info --help`. For example, it should provide you informations as follows :
+You can also add the `--files` to list all the parsed audio files, `--check_metadata` flag to check missing metadata, or either `--idx` or `--key` to get information for a specific sub-item. See the full available options by running `acids-dataset info --help`. For example, it should provide you informations as follows :
 
 ```bash
 channels: 1
