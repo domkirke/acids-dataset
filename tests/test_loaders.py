@@ -1,4 +1,5 @@
 import pytest
+import gin
 import shutil
 import acids_dataset as ad
 from acids_dataset import transforms as adt
@@ -25,7 +26,7 @@ def test_audio_dataset(dataset, transforms, output_pattern, test_name):
     preprocessed_path = OUT_TEST_DIR / f"{dataset}_preprocessed"
     if not preprocessed_path.exists():
         dataset_path = get_dataset(dataset)
-        ad.preprocess_dataset(dataset_path, out = preprocessed_path)
+        ad.preprocess_dataset(dataset_path, out = preprocessed_path, chunk_length=131072, sample_rate=44100)
     dataset = ad.datasets.AudioDataset(preprocessed_path, transforms, output_pattern)
     assert len(dataset) > 0, "dataset seems empty"
     for i in range(len(dataset)):
@@ -34,11 +35,12 @@ def test_audio_dataset(dataset, transforms, output_pattern, test_name):
 
 @pytest.mark.parametrize("dataset", get_available_datasets())
 def test_dataset_partitions(dataset):
+    gin.clear_config()
     preprocessed_path = OUT_TEST_DIR / f"{dataset}_preprocessed"
     if preprocessed_path.exists(): 
         shutil.rmtree(preprocessed_path)
     dataset_path = get_dataset(dataset)
-    ad.preprocess_dataset(dataset_path, out = preprocessed_path, chunk_length=88200)
+    ad.preprocess_dataset(dataset_path, out=preprocessed_path, chunk_length=88200, sample_rate=44100)
     dataset = ad.datasets.AudioDataset(preprocessed_path) 
 
     # test random split    

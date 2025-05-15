@@ -14,10 +14,10 @@ def dataset_config_paths():
     return [ACIDS_DATASET_CONFIG_PATH, ACIDS_DATASET_CUSTOM_CONFIG_PATH]
 
 def import_database_configs(*add_paths):
-    gin.add_config_file_search_path(ACIDS_DATASET_CONFIG_PATH)
-    gin.add_config_file_search_path(ACIDS_DATASET_CUSTOM_CONFIG_PATH)
+    gin.add_config_file_search_path(str(ACIDS_DATASET_CONFIG_PATH))
+    gin.add_config_file_search_path(str(ACIDS_DATASET_CUSTOM_CONFIG_PATH))
     for a in add_paths: 
-        gin.add_config_file_search_path(a)
+        gin.add_config_file_search_path(str(a))
 
 from . import utils
 from . import transforms

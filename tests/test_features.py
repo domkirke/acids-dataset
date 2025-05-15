@@ -47,18 +47,12 @@ def test_mel(config, feature_path, feature_config, dataset, test_name, test_k=10
     env = lmdb.open(str(dataset_out), lock=False, readonly=True)
     fragment_class = get_fragment_class(read_metadata(dataset_out)['fragment_class'])
     mel_key = list(read_metadata(dataset_out)['features'].keys())[0]
-    with env.begin() as txn:
-        dataset_keys = list(txn.cursor().iternext(values=False))
-        # pick a random item
-        random_keys = random.choices(dataset_keys, k=test_k)
-        for key in random_keys:
-            ae = fragment_class(txn.get(key))
-            audio = ae.get_audio("waveform")
-            mel = ae.get_array(mel_key)
 
-    
-    
-        
+    dataset = AudioDataset(str(dataset_out))
+    random_keys = random.choices(dataset.keys, k=test_k)
+    for key in random_keys:
+        dataset.get(key, "waveform")
+        dataset.get(key, mel_key)
 
 
 @pytest.mark.parametrize('config', ['default.gin'])
@@ -156,18 +150,6 @@ def test_module(config, dataset, feature_path, feature_config, test_name, test_k
     for r in random_keys:
         embedding = loader.get(r, output_pattern=module_feature[0].feature_name)
         assert embedding.shape[0] == (len(module_feature[0]._transforms) + 1)
-    
-    # fragment_class = get_fragment_class(read_metadata(dataset_out)['fragment_class'])
-    # with env.begin() as txn:
-    #     dataset_keys = list(txn.cursor().iternext(values=False))
-    #     # pick a random item
-    #     random_keys = random.choices(dataset_keys, k=test_k)
-    #     for key in random_keys:
-    #         ae = fragment_class(txn.get(key))
-    #         audio = ae.get_audio("waveform")
-    #         embedding = ae.get_array(module_feature[0].feature_name)
-    #         assert embedding.shape[0] == (len(module_feature[0]._transforms) + 1)
-
 
         
 @pytest.mark.parametrize('config', ['default.gin'])

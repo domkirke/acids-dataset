@@ -10,7 +10,8 @@ import sys; sys.path.append(str(Path(__file__).parent.parent))
 
 from acids_dataset import get_metadata_from_path, get_writer_class_from_path
 from acids_dataset import writers, transforms as adt
-from acids_dataset.features import AcidsDatasetFeature, ModuleEmbedding
+from acids_dataset.features import ModuleEmbedding
+from acids_dataset.transforms import Transform
 from acids_dataset.utils import GinEnv, parse_features, transform_from_gin_config, set_gin_constant
 
 
@@ -59,7 +60,7 @@ def add_embedding_to_dataset(
     for t in transforms:
         if isinstance(t, str):
             operative_transforms.append(transform_from_gin_config(t))
-        elif isinstance(t, AcidsDatasetFeature):
+        elif isinstance(t, Transform):
             operative_transforms.append(t)
 
     print(transforms, operative_transforms)

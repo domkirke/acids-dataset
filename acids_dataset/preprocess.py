@@ -63,9 +63,8 @@ def preprocess_dataset(
     compact: bool = False, 
     log: str | None = None
     ):
-    import_database_configs(*path)
-
     path = list(map(Path, checklist(path)))
+    import_database_configs(*path)
     # parse features
     features = features or []
     out = out or get_default_output_path(path)

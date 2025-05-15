@@ -82,7 +82,7 @@ def test_add_embedding(config, dataset, module_path, transforms, test_name, test
 
     # create feature
     embedding_name = os.path.splitext(os.path.basename(module_path))[0]
-    add_embedding.add_embedding_to_dataset(dataset_out, module_path=module_path, transforms=transforms, overwrite=True, embedding_name = embedding_name)
+    add_embedding.add_embedding_to_dataset(dataset_out, module_path=module_path, transforms=transforms, overwrite=True, name = embedding_name)
 
     # test loading
     loader = writer.loader(dataset_out)

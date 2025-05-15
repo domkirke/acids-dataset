@@ -82,7 +82,10 @@ class BeatTrack(AcidsDatasetFeature):
         z_length = z_length or audio.shape[-1] // self._downsample
         sr = sr or self.sr
         if audio is not None:
-            waveform = audio
+            if isinstance(audio, torch.Tensor):
+                waveform = audio.numpy()
+            else:
+                waveform = audio 
         elif audio_path is not None: 
             x, x_sr = torchaudio.load(audio_path)
             if sr != x_sr: x = torchaudio.functional.resample(x, x_sr, sr)
@@ -90,7 +93,7 @@ class BeatTrack(AcidsDatasetFeature):
         else:
             raise ValueError('either audio or audio_path must be given.')
         if waveform.ndim < 3:
-            beats, downbeats = self.audio2beats(waveform.t(), sr)
+            beats, downbeats = self.audio2beats(waveform.transpose(), sr)
             beat_clock = self.get_beat_signal(beats,
                                             waveform.shape[-1],
                                             z_length,
@@ -103,10 +106,10 @@ class BeatTrack(AcidsDatasetFeature):
                                                 zero_value=0.)        
         else:
             batch_shape = waveform.shape[:-2]
-            waveform = waveform.view((-1,)+ waveform.shape[-2:])
+            waveform = np.reshape(waveform, (-1,)+ waveform.shape[-2:])
             beat_clock, downbeat_clock = [], []
             for w in waveform:
-                b, d = self.audio2beats(w.t(), sr)
+                b, d = self.audio2beats(w.transpose(), sr)
                 bc = self.get_beat_signal(b,
                                         waveform.shape[-1],
                                         z_length,
@@ -161,4 +164,5 @@ class BeatTrack(AcidsDatasetFeature):
         return beat_data
 
     def __call__(self, x):
-        return self.track_beat(audio=x, sr=self.sr)
+        out = self.track_beat(audio=x, sr=self.sr)
+        return torch.from_numpy(out).to(x)
