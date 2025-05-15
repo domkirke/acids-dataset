@@ -42,6 +42,9 @@ class Mel(AcidsDatasetFeature):
         if write:
             fragment.put_array(self.feature_name, mels)
         return mels
+
+    def __call__(self, x):
+        return self.mel_spectrogram(x)
         
 
 

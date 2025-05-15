@@ -1,4 +1,5 @@
 import torch, torch.nn as nn
+from abc import abstractmethod
 import dill
 import numpy as np
 import torch
@@ -129,15 +130,20 @@ class ModuleEmbedding(AcidsDatasetFeature):
                 audio = audio[None, None]
             elif audio.ndim == 2: 
                 audio = audio[None]
-            out = getattr(self._module, self._method)(audio, *self._method_args, **self._method_kwargs)
-        return out.cpu().numpy()
+            batch_size = audio.shape[:-2]
+            out = getattr(self._module, self._method)(audio.view(-1, audio.shape[-2], audio.shape[-1]), *self._method_args, **self._method_kwargs)
+            out = out.view(batch_size + (out.shape[-2], out.shape[-1]))
+        return out
 
     def from_fragment(self, fragment, write: bool = True):
         if self._module is None: 
             raise RuntimeError('ModuleEmbedding has no _module. If coming from pickling, set retain_module kwargs to True when saving feature in the database.')
         audio = self._audio_from_fragment(fragment)
-        out = self._process_audio(audio)
+        out = self._process_audio(audio).cpu().numpy()
         if write: 
             fragment.put_array(self.feature_name, out)
         return out
+
+    def __call__(self, x):
+        return self._process_audio(x).to(x)
         

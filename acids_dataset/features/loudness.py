@@ -35,6 +35,9 @@ class Loudness(AcidsDatasetFeature):
             return  
         if write:
             fragment.put_array(self.feature_name, data_loudness)
+
+    def __call__(self, x):
+        return loudness(x, self.sr)
         
 
 

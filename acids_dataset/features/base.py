@@ -148,6 +148,11 @@ class AcidsDatasetFeature(object):
     def read(self, fragment):
         return fragment.get_data(self.feature_name)
 
+    def __call__(self): 
+        raise NotImplementedError()
+        
+
+
 
 def check_feature_configs(module, path):
     feature_class = getattr(module, "AcidsDatasetFeature")

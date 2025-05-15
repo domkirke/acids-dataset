@@ -89,19 +89,40 @@ class BeatTrack(AcidsDatasetFeature):
             x = x.numpy()
         else:
             raise ValueError('either audio or audio_path must be given.')
-        if waveform.ndim == 2: 
-            waveform = waveform.mean(0)
-        beats, downbeats = self.audio2beats(waveform, sr)
-        beat_clock = self.get_beat_signal(beats,
-                                          waveform.shape[-1],
-                                          z_length,
-                                          sr=sr,
-                                          zero_value=0.)
-        downbeat_clock = self.get_beat_signal(downbeats,
-                                              waveform.shape[-1],
-                                              z_length,
-                                              sr=sr,
-                                              zero_value=0.)
+        if waveform.ndim < 3:
+            beats, downbeats = self.audio2beats(waveform.t(), sr)
+            beat_clock = self.get_beat_signal(beats,
+                                            waveform.shape[-1],
+                                            z_length,
+                                            sr=sr,
+                                            zero_value=0.)
+            downbeat_clock = self.get_beat_signal(downbeats,
+                                                waveform.shape[-1],
+                                                z_length,
+                                                sr=sr,
+                                                zero_value=0.)        
+        else:
+            batch_shape = waveform.shape[:-2]
+            waveform = waveform.view((-1,)+ waveform.shape[-2:])
+            beat_clock, downbeat_clock = [], []
+            for w in waveform:
+                b, d = self.audio2beats(w.t(), sr)
+                bc = self.get_beat_signal(b,
+                                        waveform.shape[-1],
+                                        z_length,
+                                        sr=sr,
+                                        zero_value=0.)
+                dc = self.get_beat_signal(d,
+                                        waveform.shape[-1],
+                                        z_length,
+                                        sr=sr,
+                                        zero_value=0.)
+                beat_clock.append(bc)
+                downbeat_clock.append(dc)
+            beat_clock = np.stack(beat_clock)
+            downbeat_clock = np.stack(downbeat_clock)
+            beat_clock = np.reshape(beat_clock, batch_shape + (beat_clock.shape[-1],))
+            downbeat_clock = np.reshape(downbeat_clock, batch_shape + (downbeat_clock.shape[-1],))
         return np.stack([beat_clock, downbeat_clock], axis=0)
 
     def _write_beat_tracking(self, path, track_data):
@@ -138,3 +159,6 @@ class BeatTrack(AcidsDatasetFeature):
         if write:
             fragment.put_array(self.feature_name, beat_data, sr=sr)
         return beat_data
+
+    def __call__(self, x):
+        return self.track_beat(audio=x, sr=self.sr)

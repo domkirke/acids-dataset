@@ -65,4 +65,8 @@ class CQT(AcidsDatasetFeature):
         if write:
             fragment.put_array(self.feature_name, cqt)
         return cqt
+
+    def __call__(self, x):
+        x_cqt = torch.from_numpy(self.cqt(x.cpu()))
+        return x_cqt.to(x)
         

@@ -160,3 +160,6 @@ class AfterMIDI(AcidsDatasetFeature):
         if write:
             fragment.put_buffer(key=self.feature_name, b=pickle.dumps(midi_data), shape=None, unpickler=lambda x: pickle.loads(x))
         return midi_data
+
+    def __call__(self, x):
+        return self.get_midi(audio=x)

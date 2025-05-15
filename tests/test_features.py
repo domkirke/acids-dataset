@@ -38,6 +38,7 @@ def test_mel(config, feature_path, feature_config, dataset, test_name, test_k=10
 
     # extract mel
     mel_feature = Mel()
+    out = mel_feature(torch.zeros(1, 1, 16384))
 
     # build dataset
     writer = LMDBWriter(dataset_path, dataset_out, features=[mel_feature])
@@ -54,6 +55,8 @@ def test_mel(config, feature_path, feature_config, dataset, test_name, test_k=10
             ae = fragment_class(txn.get(key))
             audio = ae.get_audio("waveform")
             mel = ae.get_array(mel_key)
+
+    
     
         
 
@@ -105,6 +108,7 @@ def test_after_midi(config, dataset, feature_path, feature_config, test_name, te
 
     # extract mel
     mel_feature = AfterMIDI()
+    out = mel_feature(torch.zeros(1, 1, 16384))
 
     # build dataset
     writer = LMDBWriter(dataset_path, dataset_out, features=[mel_feature])
@@ -140,22 +144,29 @@ def test_module(config, dataset, feature_path, feature_config, test_name, test_k
 
     # # extract mel
     module_feature = feature_from_gin_config(feature_path / feature_config)
+    out = module_feature[0](torch.zeros(1, 1, 131072))
 
     # # build dataset
     writer = LMDBWriter(dataset_path, dataset_out, features=module_feature)
     writer.build()
 
     env = lmdb.open(str(dataset_out), lock=False, readonly=True)
-    fragment_class = get_fragment_class(read_metadata(dataset_out)['fragment_class'])
-    with env.begin() as txn:
-        dataset_keys = list(txn.cursor().iternext(values=False))
-        # pick a random item
-        random_keys = random.choices(dataset_keys, k=test_k)
-        for key in random_keys:
-            ae = fragment_class(txn.get(key))
-            audio = ae.get_audio("waveform")
-            embedding = ae.get_array(module_feature[0].feature_name)
-            assert embedding.shape[0] == (len(module_feature[0]._transforms) + 1)
+    loader = AudioDataset(str(dataset_out))
+    random_keys = random.choices(loader.keys, k=test_k)
+    for r in random_keys:
+        embedding = loader.get(r, output_pattern=module_feature[0].feature_name)
+        assert embedding.shape[0] == (len(module_feature[0]._transforms) + 1)
+    
+    # fragment_class = get_fragment_class(read_metadata(dataset_out)['fragment_class'])
+    # with env.begin() as txn:
+    #     dataset_keys = list(txn.cursor().iternext(values=False))
+    #     # pick a random item
+    #     random_keys = random.choices(dataset_keys, k=test_k)
+    #     for key in random_keys:
+    #         ae = fragment_class(txn.get(key))
+    #         audio = ae.get_audio("waveform")
+    #         embedding = ae.get_array(module_feature[0].feature_name)
+    #         assert embedding.shape[0] == (len(module_feature[0]._transforms) + 1)
 
 
         
@@ -213,7 +224,9 @@ def test_pitch_features(pitch_method, test_name, n_examples = 20):
     features = [f'f0_{pitch_method}.gin', f'pitch_{pitch_method}.gin']
     feature_list = []
     for f in features: 
-        feature_list.extend(feature_from_gin_config(f))
+        f = feature_from_gin_config(f)
+        feature_list.extend(f)
+        out = f[0](torch.zeros(1, 1, 131072))
 
     dataset_out = OUT_TEST_DIR / "compiled" / test_name 
     writer = LMDBWriter(dataset_dir, dataset_out, features=feature_list, force=True)
@@ -238,6 +251,7 @@ def test_beat_tracking(config, dataset, module, feature_path, feature_config, te
         shutil.rmtree(dataset_out.resolve())
 
     beat_feature = BeatTrack(downsample=module.downsample)
+    out = beat_feature(torch.randn(1, 1, 441000))
 
     # # build dataset
     writer = LMDBWriter(dataset_path, dataset_out, features=[beat_feature])

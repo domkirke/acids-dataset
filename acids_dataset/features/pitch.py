@@ -157,6 +157,12 @@ class F0(AcidsDatasetFeature):
             fragment.put_array(self.feature_name, f0)
         return f0
 
+    def __call__(self, x):
+        out = self.predict(x.numpy(), self.mode, self.sr, device=self.device, **self.kwargs)
+        out = torch.from_numpy(out).to(x)
+        return out
+
+
 
 def f0_to_pitch(x):
     if np.allclose(x, 0.):
@@ -205,4 +211,8 @@ class Pitch(F0):
         note = apply_nested(f0_to_pitch, f0.tolist())
         return np.array(note)
 
+    def __call__(self, x):
+        out = self.predict(x.numpy(), self.mode, self.sr, device=self.device, **self.kwargs)
+        out = torch.from_numpy(out).to(x.device)
+        return out    
 

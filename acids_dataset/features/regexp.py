@@ -1,4 +1,5 @@
 from .base import AcidsDatasetFeature
+from abc import abstractmethod
 import gin.torch
 import logging
 import re
@@ -88,4 +89,9 @@ class RegexpFeature(AcidsDatasetFeature):
 
     def read(self, fragment):
         return fragment.get_metadata().get(self.feature_name)
+
+    @abstractmethod
+    def __call__(self, x):
+        raise NotImplementedError
+        
         
