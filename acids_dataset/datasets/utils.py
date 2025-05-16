@@ -10,7 +10,7 @@ fragment_interfaces = {
     'audio': 'get_audio', 
     'array': 'get_array', 
     "buffer": 'get_buffer',
-    None: 'get_audio'}
+    None: 'get'}
 
 def _from_fragment(fragment, item):
     item = item.split(':')
@@ -26,7 +26,7 @@ def _outs_from_pattern(fragment, output_pattern):
     re_result = re.match(r'^(\w+)$', output_pattern)
     if re_result is not None:
         return _from_fragment(fragment, output_pattern)
-    re_result = re.match(r'^\(?([\w\,\:\[\]\d]+)\)?$', output_pattern)
+    re_result = re.match(r'^\(?([\w\,\: \[\]\d]+)\)?$', output_pattern)
     if re_result is not None:
         items = list(filter(lambda x: x != "", re_result.groups()[0].split(',')))
         item_parsed = []
@@ -41,12 +41,12 @@ def _outs_from_pattern(fragment, output_pattern):
                     subidx = int(subidx)
             else:
                 subidx = None
-            out = _from_fragment(fragment, entry)
+            out = _from_fragment(fragment, entry.replace(" ", ""))
             if subidx is not None: 
                 out = out[subidx]
             item_parsed.append(out)
         return tuple(item_parsed)
-    re_result = re.match(r'^\{([\w\,\:\[\]\d\-\>]+)\}$', output_pattern)
+    re_result = re.match(r'^\{([\w\,\: \[\]\d\-\>]+)\}$', output_pattern)
     if re_result is not None:
         items = list(filter(lambda x: x != "", re_result.groups()[0].split(',')))
         items_parsed = {}
@@ -69,11 +69,12 @@ def _outs_from_pattern(fragment, output_pattern):
                     subidx = int(subidx)
             else:
                 subidx = None
-            out = _from_fragment(fragment, entry)
+            out = _from_fragment(fragment, entry.replace(" ", ""))
             if subidx is not None: 
                 out = out[subidx]
             items_parsed[alias] = out
         return items_parsed
+    raise ValueError('Could not parse output_pattern : %s'%output_pattern)
 
 def _check_channels(out, n_channels = None):
     if out.ndim == 1: 

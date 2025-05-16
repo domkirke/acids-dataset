@@ -4,6 +4,9 @@ import gin
 import os
 gin.enter_interactive_mode()
 
+import torch
+import torchaudio
+
 
 ACIDS_DATASET_CONFIG_PATH = Path(__file__).parent / "configs"
 ACIDS_DATASET_CUSTOM_CONFIG_PATH = Path(os.getcwd()) / "ad_configs"

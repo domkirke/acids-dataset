@@ -3,8 +3,8 @@ import tempfile
 from pathlib import Path
 import torch, torchaudio, gin.torch
 from .base import AcidsDatasetFeature, FileHash
-from .beat_this.inference import Audio2Beats
 
+Audio2Beats = None
 
 @gin.configurable(module="features")
 class BeatTrack(AcidsDatasetFeature):
@@ -21,6 +21,9 @@ class BeatTrack(AcidsDatasetFeature):
         self.sr = sr
         self._tmp_folder = Path(tempfile.mkdtemp()).resolve()
         self._file_buffer = FileHash()
+        global Audio2Beats
+        if Audio2Beats is None: 
+            from beat_this.inference import Audio2Beats
         self.audio2beats = Audio2Beats(checkpoint_path=checkpoint_path,
                                        dbn=dbn,
                                        float16=float16,
@@ -164,5 +167,5 @@ class BeatTrack(AcidsDatasetFeature):
         return beat_data
 
     def __call__(self, x):
-        out = self.track_beat(audio=x, sr=self.sr)
-        return torch.from_numpy(out).to(x)
+        out = self.track_beat(audio=x.cpu(), sr=self.sr)
+        return torch.from_numpy(out.cpu()).to(x)

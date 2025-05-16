@@ -4,7 +4,6 @@ import torch
 import numpy as np
 from typing import Any, Optional, Callable, Literal
 from types import MethodType
-from . import FORCE_ARRAY_RESHAPE
 from .utils import dict_from_buffer, dict_to_buffer
 from ..utils import get_backend
 
@@ -96,6 +95,16 @@ class AudioFragment(object):
             super(AudioFragment, self).__delattr__(name)
 
     # buffers classes
+
+    def get(self, key: str):
+        buffer = self.get_buffer(key)
+        if buffer.unpickler != b'':
+            unpickler = dill.loads(buffer.unpickler)
+            return unpickler(buffer.data)
+        else:
+            return self.get_audio(key)
+
+
     def get_buffer(self, key: str):
         if key not in self.ae.buffers:
             raise KeyError(f"key '{key}' not available")
@@ -169,10 +178,6 @@ class AudioFragment(object):
             hook = lambda x: x
         array = self.get_array(key, dtype=dtype, force_dtype=False, conversion_hook=hook)
         return array
-
-    def get(self, key: str):
-        """For retro-compatibility"""
-        return self.get_audio(key)
 
     def put_buffer(self, key: str, b: bytes, shape: list, sr: int | None = None, unpickler: Callable | None = None):
         buffer = self.ae.buffers[key]

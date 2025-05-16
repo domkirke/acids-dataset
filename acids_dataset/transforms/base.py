@@ -56,16 +56,17 @@ transforms.parse_transform:
 """
 
 def check_transform_configs(module, path):
-    transform_class = getattr(module, "Transform")
-    transform_subclasses = get_subclasses_from_package(module, transform_class)
-    os.makedirs(path, exist_ok=True)
-    for transform in transform_subclasses:
-        if transform == transform_class: continue
-        gin_config_name = transform.__name__.lower() + ".gin"
-        gin_config_path = (path / gin_config_name).resolve()
-        if not gin_config_path.exists():
-            generate_config_from_obj(transform, gin_config_path, gin_config_pattern)
-        
+    if not path.exists():
+        transform_class = getattr(module, "Transform")
+        transform_subclasses = get_subclasses_from_package(module, transform_class)
+        os.makedirs(path, exist_ok=True)
+        for transform in transform_subclasses:
+            if transform == transform_class: continue
+            gin_config_name = transform.__name__.lower() + ".gin"
+            gin_config_path = (path / gin_config_name).resolve()
+            if not gin_config_path.exists():
+                generate_config_from_obj(transform, gin_config_path, gin_config_pattern)
+            
 
 class Transform():
     allow_random: bool = True
