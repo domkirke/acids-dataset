@@ -5,7 +5,7 @@
 `acids-dataset` is a preprocessing package for audio data and metadata, mostly used by [RAVE](http://github.com/acids-ircam/RAVE) and [AFTER](http://github.com/acids-ircam/AFTER) but opened for custom use. Built open [lmdb](https://openldap.org/), it leverages the pre-processing step of data parsing required by audio generative models to extract metadata and audio features that can be accessed and used during training. It brings : 
 - Conveninent pre-processing pipelines allowing to easily select / discard files, extract metadata with features of from filenames, and metadata hashing
 - Data augmentations tailored for audio with probabilities
-- Powerful data loaders for supervised / self-supervised learning with additional features (partitioning, multu-class indexing)
+- Powerful data loaders for supervised / self-supervised learning with additional features (partitioning, multi-class indexing)
 
 # Installation
 To install acids-dataset, just install it through pip.
