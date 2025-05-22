@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "acids_dataset"
+dynamic = ["version"]
+authors = [
+  { name="Axel Chemla Romeu Santos", email="chemla@ircam.fr" },
+  { name="Nils Demerlé", email="demerle@ircam.fr" },
+  { name="Antoine Caillon" }
+]
+description = "a pre-processing & dataloading library for generative audio ML"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license-files = ["LICEN[CS]E*"]
+dependencies = [
+    "pytest",
+    "grpcio-tools==1.71.0",
+    "absl-py",
+    "PyYAML",
+    "gin-config",
+    "lmdb",
+    "tqdm",
+    "dill",
+    "numpy==2.1",
+    "scipy==1.15.2",
+    "scikit-learn==1.6.1",
+    "librosa==0.10.2",
+    "torch",
+    "torchaudio",
+    "pytorch_lightning",
+    "pydub",
+    "pyroomacoustics",
+    "pyloudnorm",
+    "nnaudio",
+    "mir_eval",
+    "resampy",
+    "pretty_midi",
+    "einops",
+    "rotary_embedding_torch",
+    "audiomentations"
+]
+
+[project.scripts]
+acids-dataset = "acids_dataset.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/acids-ircam/acids-dataset"
+Issues = "https://github.com/acids-ircam/acids-dataset/issues"
+
+[tool.setuptools.package-data]
+acids_dataset = ["configs/*.gin", "transforms/basic_pitch_torch/assets/*.pth"]
