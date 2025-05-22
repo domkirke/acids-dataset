@@ -74,7 +74,7 @@ class AcidsDatasetFeature(object):
 
     @classmethod
     def init_signature(cls): 
-        return inspect.signature(cls.__init__)
+        return dict(inspect.signature(cls.__init__).parameters)
 
     def to(self, device = None):
         if device is None: 
