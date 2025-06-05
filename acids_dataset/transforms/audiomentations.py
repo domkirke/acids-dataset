@@ -92,6 +92,6 @@ def build_audiomentation_wrapper(cls):
 __all__ = []
 for obj in __augmentations_to_import:
     wrapper = build_audiomentation_wrapper(obj)
-    locals()[obj.get_class_fullname()] = wrapper
+    locals()[wrapper.get_class_fullname()] = wrapper
     __all__.append(obj.get_class_fullname())
     
