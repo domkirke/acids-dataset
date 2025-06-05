@@ -35,7 +35,7 @@ def build_audiomentation_wrapper(cls):
             self._obj = self.obj_class(*args, p=p, **aug_kwargs)
 
         def get_class_fullname(self): 
-            return type(self._obj).__name__
+            return cls.__name__
             
         def __repr__(self):
             return self._obj.__repr__()
