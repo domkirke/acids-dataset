@@ -13,7 +13,7 @@ __bypassed_audiomentations = [
 ]
 
 
-__augmentations_to_import = list(filter(lambda x: (x.get_class_fullname() not in dir(misc)) and (x.get_class_fullname() not in __bypassed_audiomentations), 
+__augmentations_to_import = list(filter(lambda x: (type(x).__name__ not in dir(misc)) and (type(x).__name__ not in __bypassed_audiomentations), 
                                         get_subclasses_from_package(ta.augmentations, ta.core.transforms_interface.BaseTransform) 
                             ))
 
