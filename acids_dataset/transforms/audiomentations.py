@@ -34,7 +34,7 @@ def build_audiomentation_wrapper(cls):
                 aug_kwargs['sample_rate'] = kwargs.get('sr')
             self._obj = self.obj_class(*args, p=p, **aug_kwargs)
 
-        def get_class_fullname(self): 
+        def get_class_fullname(): 
             return cls.__name__
             
         def __repr__(self):
