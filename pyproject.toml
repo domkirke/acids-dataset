@@ -33,6 +33,7 @@ dependencies = [
     "librosa==0.10.2",
     "torch",
     "torchaudio",
+    "soundfile>=0.12",
     "pytorch_lightning",
     "pydub",
     "pyroomacoustics",

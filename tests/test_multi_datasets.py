@@ -8,7 +8,7 @@ import torchaudio
 import pytest
 import gin
 
-from . import OUT_TEST_DIR, test_name, MAX_TEST_GETITEM_IDX
+from . import OUT_TEST_DIR, test_name, MAX_TEST_GETITEM_IDX, check_dataset_loading
 from pathlib import Path
 import acids_dataset.transforms as adt
 from acids_dataset.writers import audio_paths_from_dir, LMDBWriter, read_metadata
@@ -21,7 +21,8 @@ from .datasets import get_available_datasets, get_dataset, get_available_dataset
 
           
 @pytest.mark.parametrize('config', ['rave.gin'])
-def test_preprocess_multi(config, test_name, test_k = 1):
+@pytest.mark.parametrize("waveform", [True, False])
+def test_preprocess_multi(config, waveform, test_name, test_k = 1):
 
     set_gin_constant('SAMPLE_RATE', 44100)
     set_gin_constant('CHANNELS', 1)
@@ -35,7 +36,7 @@ def test_preprocess_multi(config, test_name, test_k = 1):
     if dataset_out.exists():
         shutil.rmtree(dataset_out.resolve())
 
-    writer = LMDBWriter(data_paths, dataset_out)
+    writer = LMDBWriter(data_paths, dataset_out, waveform=waveform)
     writer.build()
 
     # test loading
@@ -47,7 +48,10 @@ def test_preprocess_multi(config, test_name, test_k = 1):
         random_keys = random.choices(dataset_keys, k=test_k)
         for key in random_keys:
             ae = fragment_class(txn.get(key))
-            audio = ae.get_audio("waveform")
+            assert ae.has_buffer("waveform") == waveform
+            if waveform:
+                audio = ae.get_audio("waveform")
+    check_dataset_loading(dataset_out, waveform, test_k=test_k)
 
 
           
@@ -69,7 +73,7 @@ def test_combined_dataset(config, datasets, output_pattern, transforms, test_nam
     # write datasets
     for i, dataset in enumerate(datasets):
         dataset_path = get_dataset(dataset)
-        dataset_out = OUT_TEST_DIR / "compiled" / f"test_name_{i}"
+        dataset_out = OUT_TEST_DIR / "compiled" / f"{test_name}_{i}"
         if dataset_out.exists():
             shutil.rmtree(dataset_out.resolve())
         writer = LMDBWriter(dataset_path, dataset_out)

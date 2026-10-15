@@ -84,6 +84,22 @@ except ModuleNotFoundError:
     pass
 
 
+def _min_yin_frame_length(sr: float, fmin: float) -> int:
+    """minimal frame length such that two periods of fmin fit in the frame (librosa requires at least one period, and 
+    warns of inaccurate pitch detection under two periods)."""
+    return int(math.ceil(sr / fmin)) * 2 + 1
+
+
+def _zero_pad_to(audio: np.ndarray, length: int) -> np.ndarray:
+    """pads audio (last axis) up to length with trailing zeros. Zeros do not introduce spurious periodicities, 
+    whereas reflect or wrap padding create phase discontinuities that bias pitch estimation."""
+    missing = int(length) - audio.shape[-1]
+    if missing <= 0:
+        return audio
+    pad_width = [(0, 0)] * (audio.ndim - 1) + [(0, missing)]
+    return np.pad(audio, pad_width, mode="constant")
+
+
 def _reframe_pitch_out(f0_array: np.ndarray | torch.Tensor, audio_array: np.ndarray | torch.Tensor, frame_length: int, win_length: int, hop_length: int) -> torch.Tensor | np.ndarray:
     target_size = math.floor((audio_array.shape[-1] - frame_length) / hop_length) + 1
     if torch.is_tensor(f0_array):
@@ -135,7 +151,9 @@ class F0(AcidsDatasetFeature):
         fmax = kwargs.get('fmax', 'C7')
         if isinstance(fmax, str): fmax = librosa.note_to_hz(fmax)
         
-        assert mode in _AD_F0_METHODS, "mode %s not available. Available modes : %s"%_AD_F0_METHODS
+        assert mode in _AD_F0_METHODS, "mode %s not available. Available modes : %s"%(mode, _AD_F0_METHODS)
+        # inputs shorter than a frame are padded to a frame
+        audio = _zero_pad_to(audio, kwargs.get('frame_length') or cls.default_frame_length)
         if mode in ["yin", "pyin"]:
             add_kwargs = {
                 'fmin': fmin,
@@ -147,11 +165,19 @@ class F0(AcidsDatasetFeature):
             if isinstance(f_min, str): add_kwargs['fmin'] = librosa.note_to_hz(f_min)
             f_max = add_kwargs.get('fmax')
             if isinstance(f_max, str): add_kwargs['fmax'] = librosa.note_to_hz(f_max)
+            # periods of fmin must fit in analysis frames : if frame_length is too small, frames are analyzed with a 
+            # larger window (frames remain centered with the same hop_length, such that output framing is unchanged)
+            analysis_kwargs = {
+                **add_kwargs, 
+                'frame_length': max(add_kwargs['frame_length'], _min_yin_frame_length(sr, add_kwargs['fmin'])),
+                'center': kwargs.get('center', True),
+                'pad_mode': kwargs.get('pad_mode', 'constant')
+            }
             if mode == "yin":
-                f0 = librosa.yin(audio, sr=sr, **add_kwargs)
+                f0 = librosa.yin(audio, sr=sr, **analysis_kwargs)
                 f0 = _reframe_pitch_out(f0_array=f0, audio_array=audio, frame_length=add_kwargs['frame_length'], win_length=add_kwargs['frame_length'], hop_length=add_kwargs['hop_length'])
             elif mode == "pyin":
-                f0, voiced_flag, voiced_prob = librosa.pyin(audio, sr=sr, **add_kwargs)
+                f0, voiced_flag, voiced_prob = librosa.pyin(audio, sr=sr, **analysis_kwargs)
                 f0 = _reframe_pitch_out(f0_array=f0, audio_array=audio, frame_length=add_kwargs['frame_length'], win_length=add_kwargs['frame_length'], hop_length=add_kwargs['hop_length'])
                 voiced_prob = _reframe_pitch_out(f0_array=voiced_flag, audio_array=audio, frame_length=add_kwargs['frame_length'], win_length=add_kwargs['frame_length'], hop_length=add_kwargs['hop_length'])
                 f0 = np.stack([f0, voiced_prob], axis=-2)

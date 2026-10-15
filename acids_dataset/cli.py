@@ -5,7 +5,8 @@ AVAILABLE_SCRIPTS = [
     'preprocess', 
     'update',
     'info',
-    'add_embedding'
+    'add_embedding',
+    'presets'
 ]
 
 
@@ -41,6 +42,11 @@ def main():
         info.import_flags()
         sys.argv[0] = info.__name__
         app.run(info.main)
+    elif command == "presets":
+        from acids_dataset import presets
+        presets.import_flags()
+        sys.argv[0] = presets.__name__
+        app.run(presets.main)
     elif command == "add_embedding": 
         from acids_dataset import add_embedding
         add_embedding.import_flags()

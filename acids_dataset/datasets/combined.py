@@ -5,8 +5,9 @@ import copy
 from absl import logging
 import torch
 from functools import reduce
-from .simple import AudioDataset
+from .base import AudioDataset
 from ..utils import checklist
+from .utils import is_multi_index, multi_index_to_list, collate_items
 
 def cumsum(l): 
     return [sum(l[:i+1]) for i in range(len(l))]
@@ -36,6 +37,12 @@ class CombinedAudioDataset(torch.utils.data.Dataset):
             assert len(set([getattr(d, field) for d in datasets])) == 1
 
     def __getitem__(self, index): 
+        if is_multi_index(index):
+            return collate_items([self[i] for i in multi_index_to_list(index, len(self))])
+        if hasattr(index, "item"): index = index.item()
+        if index < 0: index += len(self)
+        if not (0 <= index < len(self)):
+            raise IndexError("index %d out of range for dataset of length %d"%(index, len(self)))
         target_dataset = bisect.bisect_right(self._dataset_map, index)
         if self._subindices is None: 
             if target_dataset > 0: index -= self._dataset_map[target_dataset - 1]
@@ -65,6 +72,7 @@ class CombinedAudioDataset(torch.utils.data.Dataset):
     @parent.setter
     def parent(self, obj):
         assert issubclass(type(obj), type(self)), "parent of a dataset must be a subclass of %s"%(type(self))
+        self._parent = obj
 
     @property
     def keys(self) -> List[List[str]]: 
@@ -80,38 +88,35 @@ class CombinedAudioDataset(torch.utils.data.Dataset):
             subdataset._max_samples = int(self._max_samples * (len(subindices) / len(self)))
         return subdataset
 
+    def _from_partitions(self, datasets: List[AudioDataset]) -> "CombinedAudioDataset":
+        """returns a combined dataset of partitions of the combined datasets."""
+        assert len(datasets) == len(self._datasets)
+        subdataset = copy.copy(self)
+        subdataset._datasets = list(datasets)
+        subdataset._dataset_map = cumsum([len(d) for d in datasets])
+        subdataset._subindices = None
+        subdataset.parent = self
+        if self._max_samples:
+            subdataset._max_samples = int(self._max_samples * (len(subdataset) / len(self)))
+        return subdataset
+
     def _check_feature_in_subdatasets(self, features):
         for f in checklist(features): 
             for i, d in enumerate(self._datasets):
-                assert f in d.features or f == "original_path", "feature %s not present in dataset %d (path : %s)"%(f, i, d._db_path)
+                assert f in d.feature_hash, "feature %s not present in dataset %d (path : %s)"%(f, i, d.path)
 
     def split(self, 
             partitions, 
             features = None,  
             **kwargs):
+        """splits each combined dataset with the same partitions (see AudioDataset.split), and returns combined datasets 
+        of the corresponding partitions."""
         assert self.parent is None, "dataset is already a partition"
         if features is not None: 
             self._check_feature_in_subdatasets(features)
-        partitions_list = [
-            d.split(partitions, **kwargs)
-            for d in self._datasets
-        ]
-        partitions = {}
-        for p in partitions_list[0].keys():
-            partitions[p] = [d[p] for d in partitions_list]
-        return {p: self.get_subdataset(partitions[p]) for p in partitions.keys()}
+        partitions_list = [d.split(partitions, features=features, **kwargs) for d in self._datasets]
+        return {p: self._from_partitions([d[p] for d in partitions_list]) for p in partitions_list[0].keys()}
 
     def load_partition(self, name: str | None, check: bool = False): 
-        partitions = {}
-        for i, d in enumerate(self._datasets):
-            dpart = d.load_partition(name, check=check)
-            if i == 0: partitions.update({k: [None] * len(self._datasets) for k in dpart.keys()})
-            for k in dpart.keys(): 
-                partitions[k][i] = dpart[k]._subindices
-        return {p: self.get_subdataset(partitions[p]) for p in partitions.keys()}
-        
-    
-
-
-
-    
+        partitions_list = [d.load_partition(name, check=check) for d in self._datasets]
+        return {p: self._from_partitions([d[p] for d in partitions_list]) for p in partitions_list[0].keys()}

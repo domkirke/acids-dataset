@@ -36,6 +36,68 @@ def get_backend(backend: str):
 def load_file(file_path):
     return torchaudio.load(file_path)
 
+def audio_info(file_path):
+    """returns header information (sr, channels, n_frames, duration, codec) without decoding the file. 
+    Uses soundfile (exact frame counts), and torchcodec for formats unsupported by libsndfile."""
+    file_path = str(file_path)
+    try:
+        import soundfile as sf
+        info = sf.info(file_path)
+        return {
+            'sr': int(info.samplerate), 
+            'channels': int(info.channels),
+            'n_frames': int(info.frames), 
+            'duration': float(info.frames / info.samplerate),
+            'codec': info.subtype,
+            'backend': 'soundfile'
+        }
+    except Exception as sf_exception:
+        try:
+            from torchcodec.decoders import AudioDecoder
+        except ImportError:
+            raise sf_exception
+        metadata = AudioDecoder(file_path).metadata
+        duration = metadata.duration_seconds_from_header or metadata.duration_seconds
+        return {
+            'sr': int(metadata.sample_rate), 
+            'channels': int(metadata.num_channels), 
+            'n_frames': int(round(duration * metadata.sample_rate)),
+            'duration': float(duration),
+            'codec': metadata.codec,
+            'backend': 'torchcodec'
+        }
+
+def load_audio_range(file_path, frame_offset: int = 0, num_frames: int = -1, backend: str | None = None):
+    """loads num_frames samples of a file starting at frame_offset (in original sampling rate) without 
+    decoding the whole file. Returns a (channels, time) float32 tensor and the sampling rate.
+
+    backend can be "soundfile" (sample-accurate seeking), "torchcodec" (FFmpeg-based seeking, for 
+    formats unsupported by libsndfile), or None to try soundfile first."""
+    file_path = str(file_path)
+    if backend in [None, "soundfile"]:
+        try:
+            import soundfile as sf
+            with sf.SoundFile(file_path) as f:
+                sr = f.samplerate
+                f.seek(min(frame_offset, f.frames))
+                data = f.read(num_frames, dtype="float32", always_2d=True)
+            return torch.from_numpy(data.T.copy()), sr
+        except Exception as e:
+            if backend == "soundfile": raise e
+    from torchcodec.decoders import AudioDecoder
+    decoder = AudioDecoder(file_path)
+    sr = decoder.metadata.sample_rate
+    start = frame_offset / sr
+    stop = None if num_frames < 0 else (frame_offset + num_frames) / sr
+    samples = decoder.get_samples_played_in_range(start, stop)
+    data = samples.data
+    # first decoded frame may start slightly before the requested position
+    offset = max(0, round((start - samples.pts_seconds) * sr))
+    data = data[..., offset:]
+    if num_frames >= 0:
+        data = data[..., :num_frames]
+    return data.float(), sr
+
 
 def copy_for_gin_config_copy(obj):
     if isinstance(obj, list):
@@ -127,7 +189,7 @@ def loudness(waveform: torch.Tensor, sample_rate: int, frame_length: int | None 
         waveform: input tensor of shape (..., channels, samples)
         sample_rate: sample rate
         frame_length: if given, split audio into non-overlapping frames of this length (in samples),
-                      padding the last frame if needed, and return per-frame loudness
+                      discarding the last incomplete frame, and return per-frame loudness
         keep_channels: if True, compute loudness per channel instead of combined LUFS
 
     Returns:
@@ -148,11 +210,12 @@ def loudness(waveform: torch.Tensor, sample_rate: int, frame_length: int | None 
     T = waveform.size(-1)
     B = math.prod(batch_shape)  # 1 when there are no batch dims
 
-    # --- Frame splitting: pad to multiple of frame_length, unfold into frames ---
+    # --- Frame splitting: crop to multiple of frame_length, unfold into frames ---
     if frame_length is not None:
         remainder = T % frame_length
         if remainder != 0:
-            waveform = waveform[..., math.floor(waveform.shape[-1] / frame_length)]
+            # last incomplete frame is discarded (as in features.loudness.LoudnessScript)
+            waveform = waveform[..., :frame_length * (T // frame_length)]
         # (..., C, T) -> (..., C, num_frames, frame_length)
         waveform = waveform.unfold(-1, frame_length, frame_length)
         num_frames = waveform.size(-2)
@@ -356,6 +419,11 @@ def pad(
                 return None
         else: 
             raise TypeError('got type %s for discard_if_lower_than'%type(discard_if_lower_than))
+    # degenerate chunks : nothing to repeat for empty chunks, and repeat / reflect cannot grow single samples
+    if chunk.shape[-1] == 0:
+        pad_mode = PadMode.ZERO
+    elif chunk.shape[-1] == 1 and pad_mode in [PadMode.REPEAT, PadMode.REFLECT]:
+        pad_mode = PadMode.REPLICATE
     if pad_mode == PadMode.ZERO:
         return torch.nn.functional.pad(chunk, (0, target_size - chunk.shape[-1]), mode="constant", value=0.)
     elif pad_mode == PadMode.REPEAT:

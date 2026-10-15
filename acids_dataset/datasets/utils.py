@@ -12,6 +12,36 @@ fragment_interfaces = {
     "buffer": 'get_buffer',
     None: 'get'}
 
+def is_multi_index(index) -> bool:
+    """returns True for indices selecting several items (slices, sequences or 1-d arrays of integers)."""
+    if isinstance(index, slice):
+        return True
+    if isinstance(index, (list, tuple)):
+        return True
+    if torch.is_tensor(index) or hasattr(index, "__array__"):
+        return getattr(index, "ndim", 0) > 0
+    return False
+
+def multi_index_to_list(index, length: int) -> list:
+    """converts a multi index to a list of indices."""
+    if isinstance(index, slice):
+        return list(range(*index.indices(length)))
+    if torch.is_tensor(index):
+        index = index.tolist()
+    elif hasattr(index, "__array__"):
+        import numpy as np
+        index = np.asarray(index).tolist()
+    return list(index)
+
+def collate_items(items: list):
+    """collates items as a batch (as torch DataLoader), or returns them as a list if they cannot be collated."""
+    if len(items) == 0:
+        return []
+    try:
+        return torch.utils.data.default_collate(items)
+    except (RuntimeError, TypeError):
+        return items
+
 def _from_fragment(fragment, item):
     item = item.split(':')
     if len(item) == 1:
@@ -28,7 +58,7 @@ def _outs_from_pattern(fragment, output_pattern):
         return _from_fragment(fragment, output_pattern)
     re_result = re.match(r'^\(?([\w\,\: \[\]\d]+)\)?$', output_pattern)
     if re_result is not None:
-        items = list(filter(lambda x: x != "", re_result.groups()[0].split(',')))
+        items = list(filter(lambda x: x != "", map(str.strip, re_result.groups()[0].split(','))))
         item_parsed = []
         for i in items:
             entry = i
@@ -48,7 +78,7 @@ def _outs_from_pattern(fragment, output_pattern):
         return tuple(item_parsed)
     re_result = re.match(r'^\{([\w\,\: \[\]\d\-\>]+)\}$', output_pattern)
     if re_result is not None:
-        items = list(filter(lambda x: x != "", re_result.groups()[0].split(',')))
+        items = list(filter(lambda x: x != "", map(str.strip, re_result.groups()[0].split(','))))
         items_parsed = {}
         for i in items:
             entry = i
@@ -57,7 +87,7 @@ def _outs_from_pattern(fragment, output_pattern):
             
             if ('->' in i):
                 if len(i.split('->')) == 2:
-                    entry, alias = i.split('->')
+                    entry, alias = map(str.strip, i.split('->'))
                 else:
                     raise ValueError('output_pattern %s is wrong: only one alias (aka ->) is supported'%output_pattern)
             re_result = re.match(r"^(\S+)\[([\d\:]+)\]$", entry)
