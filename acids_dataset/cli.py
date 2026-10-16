@@ -6,7 +6,8 @@ AVAILABLE_SCRIPTS = [
     'update',
     'info',
     'add_embedding',
-    'presets'
+    'presets',
+    'ui'
 ]
 
 
@@ -42,6 +43,11 @@ def main():
         info.import_flags()
         sys.argv[0] = info.__name__
         app.run(info.main)
+    elif command == "ui":
+        from acids_dataset.ui import cli as ui_cli
+        ui_cli.import_flags()
+        sys.argv[0] = ui_cli.__name__
+        app.run(ui_cli.main)
     elif command == "presets":
         from acids_dataset import presets
         presets.import_flags()

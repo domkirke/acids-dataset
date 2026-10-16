@@ -2,13 +2,16 @@
 
 **Warning** `acids-dataset` is still experimental, do not hesitate to add issues! 
 
-`acids-dataset` is a preprocessing package for audio data and metadata, mostly used by [RAVE](http://github.com/acids-ircam/RAVE) and [AFTER](http://github.com/acids-ircam/AFTER) but opened for custom use. Built on [lmdb](https://openldap.org/), it leverages the pre-processing step of data parsing required by audio generative models to extract metadata and audio features that can be accessed and used during training. It brings : 
+`acids-dataset` is a preprocessing package for audio data and metadata, mostly used by [RAVE](http://github.com/acids-ircam/RAVE) and [AFTER](http://github.com/acids-ircam/AFTER) but opened for custom use. Built on [lmdb](https://openldap.org/), it leverages the pre-processing step of data parsing required by audio generative models to extract metadata and audio features that can be accessed and used during training. It brings :
+
 - Convenient pre-processing pipelines allowing to easily select / discard files, extract metadata with features of from filenames, and metadata hashing
 - Data augmentations tailored for audio with probabilities
 - Powerful data loaders for supervised / self-supervised learning with additional features (partitioning, multi-class indexing)
 - An *online* mode, that loads raw audio folders directly (without pre-processing) with the same interface
 
+
 ## Installation
+
 To install acids-dataset, just install it through pip.
 
 ```bash
@@ -18,6 +21,8 @@ pip install acids-dataset
 **Some dependencies also have to be installed manually for some features.**
 
 - `F0` and `Pitch` has `yin` and `pyin` methods installed  through `librosa`, but can also have `crepe`, `pesto`, `world`, or `praat` by installing libraries (respectively) [torchcrepe](https://github.com/maxrmorrison/torchcrepe), [pesto-pitch](https://github.com/SonyCSLParis/pesto), [pyworld](https://github.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder), or [praat-parselmouth](https://parselmouth.readthedocs.io/en/stable/index.html#).
+
+The [dataset browser](#dataset-browser) requires [gradio](https://www.gradio.app), installed with `pip install acids-dataset[ui]`.
 
 Audio loading in online mode relies on [soundfile](https://github.com/bastibe/python-soundfile) (installed with `acids-dataset`), that allows sample-accurate partial loading of `wav`, `flac`, `aiff`, `ogg`, `opus` and `mp3` files. Other formats (`m4a`, `aac`...) are loaded through [torchcodec](https://github.com/pytorch/torchcodec) (FFmpeg-based, installed with recent versions of `torchaudio`).
 
@@ -175,6 +180,29 @@ Combined datasets can be partitioned with `split` and `load_partition` (each dat
 ## Class balancing and curriculum
 
 Class balancing is currently available through balanced partitions (`balance_cardinality=True`, see [Partitioning](#partitioning)), dataset weights of `CombinedAudioDataset`, and feature queries (`query_from_features`). Class-balanced batch sampling and curriculum learning are work in progress.
+
+## Dataset browser
+
+<center><img src="assets/web-browser.png/"></center>
+
+`acids-dataset` provides a simple web interface to explore pre-processed datasets and raw audio folders, launched with :
+
+```bash
+acids-dataset ui --path /path/to/dataset                                      # pre-processed dataset
+acids-dataset ui --path /path/to/raw/audio --feature loudness --chunk_length 1. --meta_regexp "**/{{instrument}}_*.wav"
+```
+
+or in Python with `acids_dataset.ui.launch("path/to/dataset", **dataset_kwargs)`. It opens in the browser, with the following tabs :
+
+| Tab           | Content                                                                                                                                  |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Overview      | dataset summary (items, files, durations, sampling rates, features, partitions) and list of files                                         |
+| Browse        | listen to dataset items (with their waveform, spectrogram, features and metadata), or to a part of a file                                 |
+| Statistics    | statistics and histograms of features over random items or over the whole dataset (computed on loaded audio for online datasets), and number of items per value of categorical features |
+| Augmentations | applies transforms (from `acids_dataset/configs/transforms`) to an item, to listen to and compare original and augmented audio            |
+| Partitions    | creates partitions (random, or grouped by features, balanced, seeded ; previewed before being written), and shows sizes, distribution of categorical features, and files shared between partitions |
+
+For raw audio folders, the options of online datasets are available (`--preset`, `--sample_rate`, `--chunk_length` (one second by default), `--batch_by`, `--feature`, `--meta_regexp`, `--filter`, `--exclude`, `--write_index`) ; see `acids-dataset ui --help`. The browser can also be built from an existing dataset with `acids_dataset.ui.DatasetBrowser(dataset)` and `acids_dataset.ui.build_app`.
 
 # Features, augmentations and output format
 
